@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>圣诞树</title>
+    <style>
+        :root {
+            --color-bg: #000508; 
+            --color-gold: #FFD700; 
+            --color-red: #D40000;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--color-bg); 
+            font-family: 'Inter', 'Microsoft YaHei', sans-serif;
+            color: #fff;
+            user-select: none;
+            touch-action: none;
+        }
+
+        #canvas-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        #loading-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.95);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            color: #fff;
+            font-size: 2rem;
+            flex-direction: column;
+            text-align: center;
+        }
+
+        #video-preview {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 200px;
+            height: 150px;
+            border: 2px solid #fff;
+            border-radius: 8px;
+            overflow: hidden;
+            z-index: 20;
+            transform: scaleX(-1);
+            background: #000;
+            opacity: 1;
+        }
+
+        #webcam { width: 100%; height: 100%; object-fit: cover; }
+
+        .hud-text { font-size: 1.2rem; text-shadow: 0 0 10px rgba(255, 255, 255, 0.8); }
+
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0, 20, 10, 0.7);
+            padding: 15px;
+            border: 1px solid #fff;
+            border-radius: 12px;
+            box-shadow: 0 0 15px rgba(0, 255, 0, 0.2);
+            max-width: 320px;
+            pointer-events: auto;
+        }
+        
+        .btn-group {
+            margin-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            padding-top: 10px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .custom-btn {
+            background: #D50000;
+            border: none;
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 15px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+
+        #clear-btn { background: #444; }
+        .hidden { opacity: 0; pointer-events: none; transition: opacity 0.5s; }
+        @media (max-width: 768px) {
+            .header h1 { font-size: 3rem !important; }
+            #video-preview { width: 120px !important; height: 90px !important; bottom: 10px; right: 10px; }
+            #instructions { 
+                bottom: 10px; 
+                left: 10px; 
+                right: 10px; 
+                max-width: none; 
+                padding: 10px;
+            }
+            .hud-text { font-size: 1rem; }
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+    <div id="video-preview"><video id="webcam" autoplay playsinline muted></video></div>
+
+    <div id="ui-layer">
+        <div class="header" style="position: absolute; top: 5%; left: 5%;">
+            <h1 style="margin: 0; font-family: 'Dancing Script', cursive; font-size: 4rem; color: #fff; text-shadow: 0 0 30px var(--color-gold);">
+                MERRY CHRISTMAS
+            </h1>
+            <div id="status-text" class="hud-text" style="display: none;"></div>
+        </div>
+
+        <div id="instructions">
+            <div class="hud-text" style="margin-bottom: 8px; font-weight:bold;">手势说明</div>
+            <div style="font-size: 0.9rem; line-height: 1.6;">
+                👊 <b>握拳</b>: 圣诞树环绕<br>
+                ☝️ <b>食指竖起</b>: 查看单张照片<br>
+                ↔️ <b>左右倾斜</b>: 切换照片<br>
+                🖐 <b>张开手掌</b>: 相册圆环<br>
+            </div>
+            
+            <div class="btn-group">
+                <label for="file-input" class="custom-btn">上传照片</label>
+                <button id="clear-btn" class="custom-btn">清除</button>
+            </div>
+            <input type="file" id="file-input" accept="image/*" multiple style="display:none;">
+        </div>
+    </div>
+
+    <div id="loading-screen">
+        <div id="loading-msg">准备加载...</div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+                "@mediapipe/tasks-vision": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/+esm"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
+
+        const CONFIG = {
+            particleCount: 1200, 
+            camera: { fov: 45, near: 0.1, far: 100 },
+            spiralLoops: 7,
+            treeHeight: 22,
+            treeRadiusBase: 10
+        };
+
+        class App {
+            constructor() {
+                this.container = document.getElementById('canvas-container');
+                this.statusEl = document.getElementById('status-text');
+                this.loadingScreen = document.getElementById('loading-screen');
+                this.loadingMsg = document.getElementById('loading-msg');
+                
+                this.state = 'TREE'; 
+                try {
+                    this.world = new World(this.container);
+                    this.input = new InputManager(this);
+                } catch(e) { console.error(e); return; }
+                
+                // --- Events ---
+                document.getElementById('file-input').addEventListener('change', (e) => {
+                    if (e.target.files && e.target.files.length > 0) {
+                        this.world.photoManager.clearAll(); 
+                        Array.from(e.target.files).forEach(file => {
+                            this.compressImage(file, (dataUrl) => {
+                                this.world.addPhoto(dataUrl, true);
+                            });
+                        });
+                    }
+                });
+
+                document.getElementById('clear-btn').addEventListener('click', () => {
+                    if(confirm("清除所有照片?")) this.world.photoManager.clearAll();
+                });
+                
+                this.container.addEventListener('click', () => {
+                      this.state === 'TREE' ? this.setState('SCATTER') : this.setState('TREE');
+                });
+                
+                this.init();
+            }
+
+            async init() {
+                try {
+                    this.statusEl.innerText = "构建3D世界...";
+                    this.world.init();
+                    
+                    this.statusEl.innerText = "启动摄像头...";
+                    this.loadingMsg.innerText = "请允许摄像头权限...";
+                    await this.input.init();
+                    
+                    this.loadingScreen.classList.add('hidden');
+                    this.animate();
+                } catch (error) {
+                    console.error(error);
+                    this.statusEl.innerText = "错误: " + error.message;
+                    this.loadingMsg.innerHTML = `<div style="color:red;font-size:16px;">${error.message}<br>请使用HTTPS或Localhost</div>`;
+                }
+            }
+
+            animate() {
+                requestAnimationFrame(this.animate.bind(this));
+                const time = performance.now() * 0.001;
+                this.world.update(time, this.state, this.input.gestureData);
+                this.world.render();
+            }
+
+            handleGesture(gesture) {
+                // Global Switch (works in ZOOM mainly, but can work in SCATTER too)
+                if (gesture === 'TILT_LEFT') {
+                    this.world.photoManager.prevPhoto();
+                    console.log('Prev Photo');
+                }
+                if (gesture === 'TILT_RIGHT') {
+                     this.world.photoManager.nextPhoto();
+                     console.log('Next Photo');
+                }
+
+                if (this.state === 'TREE') {
+                    if (gesture === 'OPEN_PALM') this.setState('SCATTER');
+                    if (gesture === 'POINTING') this.setState('ZOOM');
+                } else if (this.state === 'SCATTER') {
+                    if (gesture === 'Closed_Fist') this.setState('TREE');
+                    if (gesture === 'POINTING') this.setState('ZOOM');
+                } else if (this.state === 'ZOOM') {
+                    if (gesture === 'Closed_Fist') this.setState('TREE');
+                    if (gesture === 'OPEN_PALM') this.setState('SCATTER');
+                }
+            }
+
+            setState(newState) {
+                if (this.state === newState) return;
+                this.state = newState;
+                this.world.onStateChange(newState);
+            }
+
+            compressImage(file, callback) {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.src = event.target.result;
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const MAX_WIDTH = 600; 
+                        const scaleSize = MAX_WIDTH / img.width;
+                        canvas.width = MAX_WIDTH;
+                        canvas.height = img.height * scaleSize;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        callback(canvas.toDataURL('image/jpeg', 0.7)); 
+                    };
+                };
+            }
+        }
+
+        class World {
+            constructor(container) {
+                this.container = container;
+                this.scene = null;
+                this.camera = null;
+                this.renderer = null;
+                this.controls = null;
+                this.particles = null;
+                this.photoManager = null;
+                this.group = null; 
+            }
+
+            init() {
+                this.scene = new THREE.Scene();
+                this.scene.fog = new THREE.FogExp2(0x000508, 0.02);
+
+                this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+                this.camera.position.set(0, 5, 40); 
+
+                this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+                this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5)); 
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.container.appendChild(this.renderer.domElement);
+
+                const ambientLight = new THREE.AmbientLight(0xffffff, 0.5); 
+                this.scene.add(ambientLight);
+                
+                const pointLight = new THREE.PointLight(0xFFD700, 1.5, 60);
+                pointLight.position.set(10, 20, 10);
+                this.scene.add(pointLight);
+                
+                const pointLight2 = new THREE.PointLight(0xff0000, 1.0, 60);
+                pointLight2.position.set(-10, 10, -10);
+                this.scene.add(pointLight2);
+
+                this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+                this.controls.enableDamping = true;
+                this.controls.dampingFactor = 0.05;
+                this.controls.autoRotate = false; 
+
+                this.group = new THREE.Group();
+                this.scene.add(this.group);
+
+                this.particles = new Particles(this.group, CONFIG.particleCount);
+                this.photoManager = new PhotoManager(this.group, this.camera); 
+                this.star = new Star(this.group);
+                this.snow = new Snow(this.scene); 
+
+                window.addEventListener('resize', this.onResize.bind(this));
+            }
+
+            addPhoto(file, save) { this.photoManager.addPhoto(file, save); }
+
+            onResize() {
+                this.camera.aspect = window.innerWidth / window.innerHeight;
+                this.camera.updateProjectionMatrix();
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+            }
+
+            update(time, state, gestureData) {
+                this.controls.update();
+                if (this.particles) this.particles.update(time, state);
+                if (this.photoManager) this.photoManager.update(time, state);
+                if (this.star) this.star.update(time, state);
+                if (this.snow) this.snow.update(time);
+                
+                // --- Smoothing Rotation ---
+                if (gestureData) {
+                    const rotSpeed = gestureData.smoothDeltaX * 2.5; 
+                    
+                    if (state === 'TREE' && gestureData.isFist) {
+                        this.group.rotation.y += rotSpeed;
+                    } 
+                    else if (state === 'SCATTER' && gestureData.isOpenPalm) {
+                        this.group.rotation.y += rotSpeed;
+                    } else if (state !== 'ZOOM') {
+                         this.group.rotation.y += 0.001; // Slow idle
+                    }
+                } else if (state !== 'ZOOM') {
+                     this.group.rotation.y += 0.001;
+                }
+            }
+
+            render() { this.renderer.render(this.scene, this.camera); }
+            
+            onStateChange(newState) {
+                if(newState === 'TREE') {
+                    if(this.photoManager) this.photoManager.deselect();
+                } else if (newState === 'ZOOM') {
+                     // Select the photo visually closest to the camera (center of screen)
+                     if(this.photoManager) {
+                         this.photoManager.selectClosestToCamera();
+                     }
+                }
+            }
+        }
+
+        class Particles {
+            constructor(parent, count) {
+                this.parent = parent;
+                this.count = count;
+                this.shapes = [
+                    { type: 'sphere', count: Math.floor(count * 0.3), mesh: null }, 
+                    { type: 'glow', count: Math.floor(count * 0.4), mesh: null },
+                    { type: 'sparkle', count: Math.floor(count * 0.3), mesh: null }
+                ];
+                this.lastFlashTime = 0;
+                this.dummy = new THREE.Object3D();
+                this.shapes.forEach(s => { s.positionsTree = []; s.positionsScatter = []; s.currentPositions = []; });
+                this.init();
+            }
+
+            init() {
+                // Gold Spiral Spheres (Colored & Opaque)
+                const matSphere = new THREE.MeshPhongMaterial({ 
+                    color: 0xFFD700, shininess: 100, emissive: 0x221100
+                });
+
+                // Ambient Glow (Solid)
+                const matGlow = new THREE.MeshBasicMaterial({ 
+                    color: 0xFFD700 
+                });
+
+                // Sparkles (Solid)
+                const matSparkle = new THREE.MeshBasicMaterial({ 
+                    color: 0xFFFFFF  
+                });
+
+                const geoSphere = new THREE.SphereGeometry(0.15, 16, 16);  
+                const geoGlow = new THREE.BoxGeometry(0.2, 0.2, 0.2); // Soft Cubes
+                const geoSparkle = new THREE.OctahedronGeometry(0.12, 0); // Sharp Stars
+
+                this.initMesh(0, geoSphere, matSphere);
+                this.initMesh(1, geoGlow, matGlow);
+                this.initMesh(2, geoSparkle, matSparkle);
+
+                this.calculateLayouts();
+                this.assignColors();
+                this.updateMesh(true);
+            }
+
+            initMesh(index, geometry, material) {
+                const shape = this.shapes[index];
+                shape.mesh = new THREE.InstancedMesh(geometry, material, shape.count);
+                shape.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+                this.parent.add(shape.mesh);
+            }
+
+            calculateLayouts() {
+                const hRange = CONFIG.treeHeight;
+                const loops = CONFIG.spiralLoops;
+                
+                // 1. Gold Spiral
+                const sphereShape = this.shapes[0];
+                for (let i = 0; i < sphereShape.count; i++) {
+                    const t = (i / sphereShape.count); 
+                    const h = (hRange/2) - t * hRange;
+                    const angle = t * Math.PI * 2 * loops;
+                    const normH = (h + hRange/2) / hRange;
+                    const radius = (1 - normH) * CONFIG.treeRadiusBase + 0.5; 
+                    
+                    sphereShape.positionsTree.push({ x: radius * Math.cos(angle), y: h, z: radius * Math.sin(angle) }); 
+                    
+                    // Scatter Ring
+                    const ringR = 18; 
+                    const ringAngle = (i / sphereShape.count) * Math.PI * 2;
+                    sphereShape.positionsScatter.push({
+                        x: ringR * Math.cos(ringAngle),
+                        y: (Math.random()-0.5)*4, 
+                        z: ringR * Math.sin(ringAngle)
+                    });
+                    sphereShape.currentPositions.push({ ...sphereShape.positionsTree[i] });
+                }
+
+                // 2 & 3. Glow & Sparkles (Fill the volume)
+                [this.shapes[1], this.shapes[2]].forEach(shape => {
+                    for (let i = 0; i < shape.count; i++) {
+                        // Tree: Volume Cone
+                        const h = Math.random() * hRange - hRange/2;
+                        const normH = (h + hRange/2) / hRange;
+                        const maxR = (1 - normH) * (CONFIG.treeRadiusBase + 1); // Slightly wider glow
+                        const r = Math.sqrt(Math.random()) * maxR; 
+                        const theta = Math.random() * Math.PI * 2;
+                        
+                        shape.positionsTree.push({ x: r * Math.cos(theta), y: h, z: r * Math.sin(theta) });
+
+                         // Scatter: Cloud
+                        const rS = 22 + (Math.random() - 0.5) * 12;
+                        const thetaS = Math.random() * Math.PI * 2;
+                        const yS = (Math.random() - 0.5) * 20;
+                         shape.positionsScatter.push({ x: rS * Math.cos(thetaS), y: yS, z: rS * Math.sin(thetaS) });
+                        
+                        shape.currentPositions.push({ ...shape.positionsTree[i] });
+                    }
+                });
+            }
+
+            assignColors() {
+                // Gold/Warm Palette for Glow
+                const paletteGlow = [ new THREE.Color(0xFFD700), new THREE.Color(0xFFA500), new THREE.Color(0xFFFFE0) ];
+                // Sparkle Palette
+                const paletteSparkle = [ new THREE.Color(0xFFFFFF), new THREE.Color(0xFFD700) ];
+                // Spiral Palette (Gold + Vibrant Highlights)
+                const paletteSphere = [ new THREE.Color(0xFFD700), new THREE.Color(0xFF0000), new THREE.Color(0x00FF00), new THREE.Color(0x0088FF) ];
+
+                this.shapes.forEach((shape, idx) => {
+                    let palette;
+                    if(idx === 0) palette = paletteSphere;
+                    else if(idx === 1) palette = paletteGlow;
+                    else palette = paletteSparkle;
+
+                    for (let i = 0; i < shape.count; i++) {
+                        shape.mesh.setColorAt(i, palette[Math.floor(Math.random() * palette.length)]);
+                    }
+                    shape.mesh.instanceColor.needsUpdate = true;
+                });
+            }
+
+            update(time, targetState) {
+                const lerpFactor = 0.08; 
+                // Flash Effects
+                if (Math.floor(time * 8) > this.lastFlashTime) {
+                    this.lastFlashTime = Math.floor(time * 8);
+                    const shape = this.shapes[0]; 
+                    const colors = [0xFF0000, 0x00FF00, 0x0000FF, 0xFFFF00, 0xFF00FF];
+                    const tmpColor = new THREE.Color();
+                    for (let i = 0; i < shape.count; i+=15) {
+                         tmpColor.setHex(colors[Math.floor(Math.random() * colors.length)]);
+                         shape.mesh.setColorAt(i + Math.floor(Math.random()*5), tmpColor);
+                    }
+                    shape.mesh.instanceColor.needsUpdate = true;
+                }
+
+                this.shapes.forEach((shape, sIdx) => {
+                    const targetPositions = (targetState === 'TREE') ? shape.positionsTree : shape.positionsScatter;
+                    let needsUpdate = false;
+                    for (let i = 0; i < shape.count; i++) {
+                        const cur = shape.currentPositions[i];
+                        let tgt = targetPositions[i];
+                        
+                        // In Zoom, spread particles out more
+                        if (targetState === 'ZOOM') {
+                             tgt = shape.positionsScatter[i];
+                        }
+
+                        if ((tgt.x-cur.x)**2 + (tgt.y-cur.y)**2 + (tgt.z-cur.z)**2 > 0.001) {
+                            cur.x += (tgt.x - cur.x) * lerpFactor;
+                            cur.y += (tgt.y - cur.y) * lerpFactor;
+                            cur.z += (tgt.z - cur.z) * lerpFactor;
+                            needsUpdate = true;
+                        }
+                        
+                        if (targetState === 'SCATTER' || targetState === 'ZOOM') {
+                             cur.y += Math.sin(time + i + cur.x) * 0.01;
+                             needsUpdate = true;
+                        }
+                        
+                        // Twinkle rotation
+                        this.dummy.position.set(cur.x, cur.y, cur.z);
+                        if (sIdx > 0) { 
+                            this.dummy.rotation.x = time + i; 
+                            this.dummy.rotation.y = time * 0.5; 
+                            // Pulse scale for glow
+                            const s = 1.0 + 0.3 * Math.sin(time * 5 + i);
+                            this.dummy.scale.set(s,s,s);
+                        } else {
+                            this.dummy.scale.set(1,1,1);
+                        }
+                        this.dummy.updateMatrix();
+                        shape.mesh.setMatrixAt(i, this.dummy.matrix);
+                    }
+                    if(needsUpdate || targetState !== 'TREE') shape.mesh.instanceMatrix.needsUpdate = true;
+                });
+            }
+            updateMesh(force) { if (force) this.update(0, 'TREE'); }
+        }
+
+        // --- PhotoManager ---
+        class PhotoManager {
+            constructor(parent, camera) { 
+                this.parent = parent;
+                this.camera = camera; 
+                this.photos = [];
+                this.photoGroup = new THREE.Group();
+                this.parent.add(this.photoGroup);
+                this.selectedIndex = -1;
+                this.loadDefaults();
+            }
+
+            loadDefaults() {
+                // Try load user photos first
+                let stored = [];
+                try { stored = JSON.parse(localStorage.getItem('xmas_user_photos') || "[]"); } catch(e){}
+                
+                if (stored.length > 0) {
+                     stored.forEach(src => this.addPhoto(src, false));
+                } else {
+                    // Defaults
+                    let sources = [
+                         'https://images.unsplash.com/photo-1543589077-47d81606c1bf?auto=format&fit=crop&w=500&q=60',
+                        'https://images.unsplash.com/photo-1511268011861-691ed6d906a0?auto=format&fit=crop&w=500&q=60',
+                        'https://images.unsplash.com/photo-1576919228236-a097c32a5cd4?auto=format&fit=crop&w=500&q=60',
+                        'https://images.unsplash.com/photo-1482517967863-00e15c9b44be?auto=format&fit=crop&w=500&q=60'
+                    ];
+                    const minPhotos = 12;
+                    while (sources.length < minPhotos) sources = sources.concat(sources);
+                    sources = sources.slice(0, 16); 
+                    sources.forEach(src => this.addPhoto(src, false));
+                }
+            }
+
+            addPhoto(source, save = false) {
+                const loader = new THREE.TextureLoader();
+                loader.crossOrigin = "Anonymous";
+                loader.load(source, (texture) => {
+                    texture.colorSpace = THREE.SRGBColorSpace;
+                    this.createPolaroidMesh(texture);
+                    this.recalcPositions(); 
+                    
+                    if (save) {
+                         try {
+                             let saved = JSON.parse(localStorage.getItem('xmas_user_photos') || "[]");
+                             if(!saved.includes(source)) {
+                                 saved.push(source);
+                                 localStorage.setItem('xmas_user_photos', JSON.stringify(saved));
+                             }
+                         } catch(e) { console.warn("Storage Full"); }
+                    }
+                });
+            }
+            
+            clearAll() {
+                this.photos.forEach(p => this.photoGroup.remove(p.mesh));
+                this.photos = [];
+                this.selectedIndex = -1;
+                localStorage.removeItem('xmas_user_photos'); 
+                // Don't reload defaults immediately, let user see empty stats or re-upload
+                // Or reload defaults? User said "Clear". 
+                // If I leave empty, it might crash loops. Let's reload defaults actually.
+                this.loadDefaults();
+            }
+
+            createPolaroidMesh(texture) {
+                const polaroidGroup = new THREE.Group();
+                const pWidth = 3.0; const pHeight = 3.5; 
+                const paperGeo = new THREE.PlaneGeometry(pWidth, pHeight);
+                const paperMat = new THREE.MeshBasicMaterial({ color: 0xFFFFFF, side: THREE.DoubleSide });
+                const paper = new THREE.Mesh(paperGeo, paperMat);
+                
+                const aspect = texture.image.width / texture.image.height;
+                const iWidth = 2.6; const iHeight = iWidth / aspect;
+                const photoGeo = new THREE.PlaneGeometry(iWidth, Math.min(iHeight, 2.6)); 
+                const photoMat = new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide });
+                const photo = new THREE.Mesh(photoGeo, photoMat);
+                photo.position.z = 0.02; photo.position.y = 0.2; 
+                
+                polaroidGroup.add(paper); polaroidGroup.add(photo);
+                this.photos.push({ mesh: polaroidGroup, originTree: new THREE.Vector3(), originScatter: new THREE.Vector3() });
+                this.photoGroup.add(polaroidGroup);
+            }
+            
+            recalcPositions() {
+                const count = this.photos.length;
+                const hRange = CONFIG.treeHeight - 5; 
+                const loops = CONFIG.spiralLoops;
+
+                this.photos.forEach((p, i) => {
+                    // Tree: Push OUT further (radius + 2.5)
+                    const t = i / (count || 1);
+                    const h = (hRange/2) - t * hRange;
+                    const angle = t * Math.PI * 2 * loops; 
+                    const normH = (h + hRange/2) / hRange;
+                    const r = (1 - normH) * CONFIG.treeRadiusBase + 2.5; 
+                    p.originTree.set(r * Math.cos(angle), h, r * Math.sin(angle));
+
+                    // Scatter: Ring
+                    const ringR = 18;
+                    const ringAngle = (i / count) * Math.PI * 2;
+                    p.originScatter.set(ringR * Math.cos(ringAngle), 0, ringR * Math.sin(ringAngle));
+                });
+            }
+
+            nextPhoto() { if(this.photos.length) this.selectedIndex = (this.selectedIndex + 1) % this.photos.length; }
+            prevPhoto() { if(this.photos.length) this.selectedIndex = (this.selectedIndex - 1 + this.photos.length) % this.photos.length; }
+            selectClosestToCamera() {
+                if(!this.photos.length) return;
+                let minDist = Infinity;
+                let closestIdx = -1;
+                const camPos = new THREE.Vector3();
+                this.camera.getWorldPosition(camPos);
+                const pPos = new THREE.Vector3();
+
+                this.photos.forEach((p, i) => {
+                    p.mesh.getWorldPosition(pPos);
+                    const dist = pPos.distanceTo(camPos);
+                    if(dist < minDist) {
+                        minDist = dist;
+                        closestIdx = i;
+                    }
+                });
+                this.selectedIndex = closestIdx;
+            }
+
+            deselect() { this.selectedIndex = -1; }
+
+            update(time, state) {
+                const lerpFactor = 0.1; 
+                
+                // Calculate carousel rotation to scroll selected photo to center (Camera Direction)
+                let angleOffset = 0;
+                const count = this.photos.length;
+                if (this.selectedIndex !== -1) {
+                    const localCamPos = new THREE.Vector3().copy(this.camera.position);
+                    this.parent.worldToLocal(localCamPos); // Camera pos relative to Group (since PhotoGroup is inside Group, but PhotoGroup usually has 0 transform)
+                    // Actually PhotoGroup is child of Group. Group might be rotated. 
+                    // We want the ring (inside PhotoGroup) to align with Camera. 
+                    // So we need Camera position in PhotoGroup space?
+                    // PhotoGroup is added to this.parent (Group).
+                    // So yes, LocalCamPos is mostly correct if PhotoGroup has identity transform.
+                    
+                    const camAngle = Math.atan2(localCamPos.z, localCamPos.x); 
+                    const angleStep = (Math.PI * 2) / count;
+                    // We want (selectedIndex * angleStep + offset) approx equal to camAngle (to face camera)
+                    angleOffset = camAngle - (this.selectedIndex * angleStep);
+                }
+
+                this.photos.forEach((p, i) => {
+                    let target = new THREE.Vector3();
+                    let targetScale = 1;
+
+                    if (state === 'ZOOM' && i === this.selectedIndex) {
+                        // ZOOM: Enlarge and center, Face Camera, Block Others
+                        
+                        // 1. Target is a point in front of the camera (World Space)
+                        const worldTarget = new THREE.Vector3().copy(this.camera.position).multiplyScalar(0.85); 
+                        
+                        // 2. Convert World Target to Local Space (since p.mesh.position is local)
+                        this.photoGroup.worldToLocal(worldTarget);
+                        target.copy(worldTarget);
+                        
+                        // 3. Face Camera
+                        p.mesh.lookAt(this.camera.position);
+
+                        targetScale = 1.2;
+                        p.mesh.renderOrder = 9999;
+                        p.mesh.children.forEach(c => { if(c.material) c.material.depthTest = false; });
+
+                    } else if (state === 'TREE') {
+                         p.mesh.renderOrder = 0;
+                         p.mesh.children.forEach(c => { if(c.material) c.material.depthTest = true; });
+
+                         const rotY = time * 0.2;
+                         const x = p.originTree.x * Math.cos(rotY) - p.originTree.z * Math.sin(rotY);
+                         const z = p.originTree.x * Math.sin(rotY) + p.originTree.z * Math.cos(rotY);
+                         target.set(x, p.originTree.y, z);
+                         
+                         // Face Outward (Normal) - CORRECTED for Group Rotation
+                         // We need World Space target for lookAt
+                         // 1. Update Parent Matrix World just in case (though usually auto updated)
+                         this.parent.updateMatrixWorld();
+                         // 2. Calculate "Outward" point in World Space
+                         const vector = new THREE.Vector3(x * 2, p.originTree.y, z * 2);
+                         const worldTarget = vector.applyMatrix4(this.parent.matrixWorld);
+                         p.mesh.lookAt(worldTarget);
+
+                         targetScale = 0.6; 
+                    } else {
+                         p.mesh.renderOrder = 0;
+                         p.mesh.children.forEach(c => { if(c.material) c.material.depthTest = true; });
+
+                        // SCATTER / ZOOM (Background): Ring Mode
+                        const ringR = 18;
+                        const angleStep = (Math.PI * 2) / count;
+                        
+                        // Apply scrolling rotation using angleOffset
+                        const currentAngle = i * angleStep + angleOffset; 
+                        
+                        target.set(ringR * Math.cos(currentAngle), 0, ringR * Math.sin(currentAngle));
+                        
+                        const camPos = new THREE.Vector3();
+                        this.camera.getWorldPosition(camPos);
+                        p.mesh.lookAt(camPos); 
+                        
+                        targetScale = 2; // Keep Scatter size
+
+                        if (state === 'ZOOM') {
+                             // Background ring stays at target
+                        }
+                    }
+                    
+                    p.mesh.position.lerp(target, 0.1);
+                    p.mesh.scale.set(targetScale, targetScale, targetScale);
+                });
+            }
+        }
+
+        class Star {
+            constructor(parent) { this.parent = parent; this.init(); }
+            init() {
+                const shape = new THREE.Shape();
+                const outer = 1.5, inner = 0.7;
+                for(let i=0;i<10;i++) {
+                    const r=(i%2===0)?outer:inner;
+                    const a=i*Math.PI/5 + Math.PI/2;
+                    i===0?shape.moveTo(r*Math.cos(a),r*Math.sin(a)):shape.lineTo(r*Math.cos(a),r*Math.sin(a));
+                }
+                shape.closePath();
+                const geom=new THREE.ExtrudeGeometry(shape,{depth:0.4,bevelEnabled:false});
+                geom.center();
+                const mat=new THREE.MeshBasicMaterial({color:0xFFD700}); 
+                this.mesh=new THREE.Mesh(geom,mat);
+                this.mesh.position.set(0,CONFIG.treeHeight/2 + 1,0); 
+                this.parent.add(this.mesh);
+            }
+            update(time,state) {
+                this.mesh.visible = (state === 'TREE');
+                this.mesh.rotation.y = time;
+            }
+        }
+
+        class Snow {
+            constructor(scene) { this.scene = scene; this.init(); }
+            init() { /*...*/ 
+                const shape = new THREE.Shape();
+                const R=0.15, r=R*0.5;
+                for(let i=0;i<12;i++){
+                   const a=i*Math.PI/6; const l=(i%2===0)?R:r;
+                   i===0?shape.moveTo(l*Math.cos(a),l*Math.sin(a)):shape.lineTo(l*Math.cos(a),l*Math.sin(a));
+                }
+                shape.closePath();
+                const geo=new THREE.ShapeGeometry(shape);
+                const mat=new THREE.MeshBasicMaterial({color:0xFFFFFF,side:THREE.DoubleSide});
+                this.mesh=new THREE.InstancedMesh(geo,mat,400);
+                this.scene.add(this.mesh);
+                this.data=Array.from({length:400},()=>({
+                    x:Math.random()*50-25, y:Math.random()*40-20, z:Math.random()*50-25,
+                    rotSpeed:(Math.random()-0.5)*2
+                }));
+                this.dummy=new THREE.Object3D();
+            }
+            update(time) {
+                 this.data.forEach((d,i)=>{
+                    this.dummy.position.set(d.x, d.y, d.z);
+                    this.dummy.rotation.z=time*d.rotSpeed; 
+                    this.dummy.updateMatrix();
+                    this.mesh.setMatrixAt(i,this.dummy.matrix);
+                });
+                this.mesh.instanceMatrix.needsUpdate=true;
+            }
+        }
+
+        class InputManager {
+            constructor(app) {
+                this.app = app;
+                this.video = document.getElementById('webcam');
+                this.gestureData = { isOpenPalm: false, isFist: false, isPointing: false, smoothDeltaX: 0 };
+                this.lastHandX = 0;
+                this.lastGestureTime = 0;
+            }
+
+            async init() {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error("浏览器不支持摄像头，或未在HTTPS/Localhost环境下运行。");
+                }
+                await this.setupWebcam();
+                
+                const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm");
+                this.handLandmarker = await HandLandmarker.createFromOptions(vision, {
+                    baseOptions: {
+                         modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
+                        delegate: "GPU"
+                    },
+                    runningMode: "VIDEO", numHands: 1
+                });
+                
+                setInterval(() => this.detect(), 60); 
+            }
+
+            async setupWebcam() {
+                const constraints = { video: { facingMode: 'user', width: 640, height: 480 } };
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                    this.video.srcObject = stream;
+                    await new Promise(r => { this.video.onloadedmetadata = () => { this.video.play(); r(); } });
+                } catch(e) { throw new Error("无法启动摄像头：" + e.message); }
+            }
+
+            detect() {
+                if (!this.handLandmarker || this.video.paused) return;
+                const results = this.handLandmarker.detectForVideo(this.video, performance.now());
+                
+                let rawDelta = 0;
+                if (results.landmarks && results.landmarks.length > 0) {
+                    const lm = results.landmarks[0];
+                    const currX = lm[9].x; 
+                    
+                    if (this.lastHandX !== 0) rawDelta = currX - this.lastHandX; 
+                    this.lastHandX = currX;
+                    this.gestureData.smoothDeltaX = this.gestureData.smoothDeltaX * 0.8 + rawDelta * 0.2;
+
+                    // STRICTER GESTURE LOGIC
+                    this.gestureData.isPointing = this.detectPointing(lm);
+                    // Fist cannot be pointing
+                    this.gestureData.isFist = !this.gestureData.isPointing && this.detectFist(lm);
+                    // Palm cannot be pointing or fist
+                    this.gestureData.isOpenPalm = !this.gestureData.isFist && !this.gestureData.isPointing && this.detectOpenPalm(lm);
+                    
+                    const now = Date.now();
+                    if (now - this.lastGestureTime > 3000) { 
+                        // Only detect tilt if Pointing
+                        if (this.gestureData.isPointing) {
+                            if(this.detectTiltLeft(lm)) { this.app.handleGesture('TILT_LEFT'); this.lastGestureTime = now; }
+                            else if(this.detectTiltRight(lm)) { this.app.handleGesture('TILT_RIGHT'); this.lastGestureTime = now; }
+                        }
+                    }
+
+                    if (this.gestureData.isFist) this.app.handleGesture('Closed_Fist');
+                    else if (this.gestureData.isOpenPalm) this.app.handleGesture('OPEN_PALM');
+                    else if (this.gestureData.isPointing) this.app.handleGesture('POINTING');
+                    
+                } else {
+                    this.lastHandX = 0;
+                    this.gestureData.smoothDeltaX = 0; 
+                }
+            }
+            
+            getDist(p1, p2) { return Math.sqrt((p1.x-p2.x)**2 + (p1.y-p2.y)**2); }
+            
+            // Fist: 4 fingers closed
+            detectFist(lm) {
+                const wrist = lm[0];
+                let folded = 0;
+                [8,12,16,20].forEach(t => { if(this.getDist(lm[t], wrist) < 0.25) folded++; });
+                return folded >= 4; 
+            }
+            // Open Palm: 4 fingers open (Thumb optional)
+            detectOpenPalm(lm) {
+                const wrist = lm[0];
+                let open = 0;
+                [8,12,16,20].forEach(t => { if(this.getDist(lm[t], wrist) > 0.35) open++; });
+                return open >= 4; 
+            }
+            // Pointing: Index Extended, others folded 
+            detectPointing(lm) {
+                 const wrist = lm[0];
+                 const indexOpen = this.getDist(lm[8], wrist) > 0.3; // Index Tip far
+                 // Middle, Ring, Pinky Tips close
+                 const othersClosed = this.getDist(lm[12], wrist) < 0.25 && 
+                                      this.getDist(lm[16], wrist) < 0.25 && 
+                                      this.getDist(lm[20], wrist) < 0.25;
+                 return indexOpen && othersClosed;
+            }
+            detectTiltLeft(lm) { return lm[8].x < lm[5].x - 0.08; }
+            detectTiltRight(lm) { return lm[8].x > lm[5].x + 0.08; }
+        }
+
+        window.addEventListener('load', () => { const app = new App(); });
+    </script>
+</body>
+</html>
