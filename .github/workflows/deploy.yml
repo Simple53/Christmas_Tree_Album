@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -24,17 +24,14 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Inject Secrets
+      - name: Inject Configuration
         env:
           GH_OWNER: ${{ vars.GH_OWNER || github.repository_owner }}
           GH_REPO: ${{ vars.GH_REPO || github.event.repository.name }}
-          GH_TOKEN: ${{ secrets.GH_TOKEN }} 
         run: |
-          # 如果 Secrets 为空，这里会置换为空字符串，页面逻辑会回退到从 UI/LocalStorage 读取
-          # 注意：GH_TOKEN 必须在仓库 Settings -> Secrets and variables -> Actions 中配置
+          # 只注入公开信息 (Owner/Repo)，绝不注入 Token
           sed -i "s|%%GH_OWNER%%|$GH_OWNER|g" index.html
           sed -i "s|%%GH_REPO%%|$GH_REPO|g" index.html
-          sed -i "s|%%GH_TOKEN%%|$GH_TOKEN|g" index.html
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
