@@ -80,9 +80,7 @@
 5.  保存后，GitHub Action 会自动构建，几分钟后即可通过 `<username>.github.io/<repo>` 访问。
 
 ### 配置 Token 安全 (高级)
-为了避免用户每次都在网页上手动输入 Token，可以通过 GitHub Actions 在构建时注入非敏感的配置（如 Repo 名），但**强烈建议 Token 仍由用户端输入**以防泄露。
-
-*本项目当前逻辑设计为：HTML 中不硬编码 Token，完全依赖用户在浏览器本地存储 (`localStorage`) 中保存 Token，确保安全性。*
+为了避免用户每次都在网页上手动输入 Token，可以通过 GitHub Actions 在构建时注入非敏感的配置（如 Repo 名），但**强烈建议 Token 仍由用户端输入**以防泄露。*本项目当前逻辑设计为：HTML 中不硬编码 Token，完全依赖用户在浏览器本地存储 (`localStorage`) 中保存 Token，确保安全性。
 ---
 
 祝你玩得开心！Merry Christmas! 🎅🎁
