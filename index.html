@@ -334,6 +334,7 @@
 
             get isConfigured() {
                 const c = this.config;
+                return c.owner && c.repo && c.token;
             }
 
             saveConfig(owner, repo, token, path = 'photos/') {
