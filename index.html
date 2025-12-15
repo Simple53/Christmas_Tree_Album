@@ -425,7 +425,14 @@
                 });
                 
                 this.container.addEventListener('click', () => {
-                      this.state === 'TREE' ? this.setState('SCATTER') : this.setState('TREE');
+                      if(this.state !== 'ZOOM') {
+                           this.state === 'TREE' ? this.setState('SCATTER') : this.setState('TREE');
+                      }
+                });
+
+                this.container.addEventListener('dblclick', (e) => {
+                     e.preventDefault();
+                     this.handleDoubleClick(e);
                 });
                 
                 // UI Event Listeners
@@ -597,6 +604,37 @@
                 if (this.state === newState) return;
                 this.state = newState;
                 this.world.onStateChange(newState);
+            }
+            
+            handleDoubleClick(e) {
+                // Raycasting for Photo Selection
+                const mouse = new THREE.Vector2();
+                mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+                mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+                
+                const raycaster = new THREE.Raycaster();
+                raycaster.setFromCamera(mouse, this.world.camera);
+                
+                // Check intersections with photos
+                // We need to traverse photos to find matches.
+                // Photos are in this.world.photoManager.photoGroup
+                // But photos are Groups (Paper + Image). We hit the Mesh inside group.
+                
+                let intersects = raycaster.intersectObjects(this.world.photoManager.photoGroup.children, true);
+                if(intersects.length > 0) {
+                     // Find which photo index
+                     const hitObj = intersects[0].object;
+                     const photoGroup = hitObj.parent; // The group containing paper & photo
+                     
+                     const idx = this.world.photoManager.photos.findIndex(p => p.mesh === photoGroup);
+                     if(idx !== -1) {
+                         this.world.photoManager.selectedIndex = idx;
+                         this.setState('ZOOM');
+                     }
+                } else {
+                     // Double click background? Maybe toggle out of zoom
+                     if(this.state === 'ZOOM') this.setState('SCATTER');
+                }
             }
 
             compressImage(file, callback) {
@@ -907,11 +945,13 @@
                 this.photoGroup = new THREE.Group();
                 this.parent.add(this.photoGroup);
                 this.selectedIndex = -1;
+                this.showingDefaults = false;
                 this.loadPhotos();
             }
 
             async loadPhotos() {
                 let sources = [];
+                this.showingDefaults = false;
                 
                 // 1. Try GitHub
                 if (this.githubStore.isConfigured) {
@@ -937,12 +977,19 @@
                     // Make it look full
                     while (defaults.length < 12) defaults = defaults.concat(defaults);
                     sources = defaults.slice(0, 16);
+                    this.showingDefaults = true;
                 }
 
                 sources.forEach(src => this.addPhotoToScene(src));
             }
 
             addPhoto(source, save = false) {
+                 // Check if showing defaults, clear them first if so
+                 if(this.showingDefaults) {
+                     this.clearAll(true); // Clear scene only
+                     this.showingDefaults = false;
+                 }
+                 
                  // 1. Add to Scene Immediately
                  this.addPhotoToScene(source);
                  
