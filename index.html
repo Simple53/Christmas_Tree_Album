@@ -264,12 +264,28 @@
             </div>
             <div style="font-size: 0.75rem; color: #aaa; margin-bottom: 20px; line-height: 1.4;">
                 照片将上传到您的 GitHub 仓库。<br>
-                <span style="color:#FFA500">安全提示：</span>Token 不会随网页发布，请在此处手动粘贴。<br>
-                Token 需要权限：<span style="color:#FFD700">Repository permissions -> Contents -> Read and write</span>
-            </div>
             <div class="modal-actions">
                 <button class="btn-cancel" id="close-settings">关闭</button>
                 <button class="btn-save" id="save-settings">保存连接</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manage Photos Modal -->
+    <div id="manage-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 600px;">
+            <h2>管理照片</h2>
+            <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+                <button id="btn-clear-all" class="custom-btn" style="background:#ff4444; color:white; width:100%;">清空所有照片 (!)</button>
+            </div>
+            <div style="max-height: 400px; overflow-y: auto; text-align: left;">
+                <p style="color:#aaa; font-size:14px; margin-bottom:10px;">点击删除单张 (只会删除已上传的照片, 默认展示图无法删除)</p>
+                <div id="photo-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 10px;">
+                    <!-- Items populated by JS -->
+                </div>
+            </div>
+            <div class="modal-actions" style="margin-top:20px;">
+                <button class="btn-cancel" id="close-manage">关闭</button>
             </div>
         </div>
     </div>
@@ -366,11 +382,36 @@
                     if(!Array.isArray(data)) return [];
                     return data
                         .filter(file => file.type === 'file' && file.name.match(/\.(jpg|jpeg|png|gif)$/i))
-                        .map(file => file.download_url);
+                        .map(file => ({
+                            url: file.download_url,
+                            name: file.name,
+                            path: file.path,
+                            sha: file.sha,
+                            source: 'github'
+                        }));
                 } catch (e) {
                     console.error("GitHub Fetch Error:", e);
                     return [];
                 }
+            }
+
+            async deletePhoto(path, sha) {
+                 if (!this.isConfigured) throw new Error("GitHub Not Configured");
+                 const url = `https://api.github.com/repos/${this.config.owner}/${this.config.repo}/contents/${path}`;
+                 
+                 const res = await fetch(url, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${this.config.token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        message: "Delete photo via Xmas App",
+                        sha: sha
+                    })
+                });
+                if (!res.ok) throw new Error(await res.text());
+                return true;
             }
 
             async uploadPhoto(dataUrl) {
@@ -426,7 +467,19 @@
                 });
 
                 document.getElementById('clear-btn').addEventListener('click', () => {
-                    if(confirm("清除所有照片?")) this.world.photoManager.clearAll();
+                    document.getElementById('manage-modal').classList.remove('hidden');
+                    this.world.photoManager.renderManageList();
+                });
+                
+                document.getElementById('close-manage').addEventListener('click', () => {
+                    document.getElementById('manage-modal').classList.add('hidden');
+                });
+                
+                document.getElementById('btn-clear-all').addEventListener('click', () => {
+                    if(confirm("确定清空所有照片吗？这会删除本地记录，如果是GitHub模式，将通过文件列表逐个尝试删除(慎用)！建议仅在本地调试使用。")) {
+                         this.world.photoManager.clearAll();
+                         document.getElementById('manage-modal').classList.add('hidden');
+                    }
                 });
                 
                 document.getElementById('clear-btn').addEventListener('click', () => {
@@ -978,14 +1031,21 @@
                 // 1. Try GitHub
                 if (this.githubStore.isConfigured) {
                     try {
-                        sources = await this.githubStore.fetchPhotos();
+                        const items = await this.githubStore.fetchPhotos();
+                        sources = items; 
                         console.log("Loaded from GitHub:", sources.length);
                     } catch(e) { console.error(e); }
                 }
 
                 // 2. If no GitHub or empty, try LocalStorage
                 if (sources.length === 0) {
-                     try { sources = JSON.parse(localStorage.getItem('xmas_user_photos') || "[]"); } catch(e){}
+                     try { 
+                         const raw = JSON.parse(localStorage.getItem('xmas_user_photos') || "[]");
+                         sources = raw.map(item => {
+                             if(typeof item === 'string') return { url: item, source: 'local' };
+                             return item;
+                         });
+                     } catch(e){}
                 }
 
                 // 3. If still empty, use Defaults
@@ -998,11 +1058,11 @@
                     ];
                     // Make it look full
                     while (defaults.length < 12) defaults = defaults.concat(defaults);
-                    sources = defaults.slice(0, 16);
+                    sources = defaults.slice(0, 16).map(url => ({ url: url, source: 'default' }));
                     this.showingDefaults = true;
                 }
 
-                sources.forEach(src => this.addPhotoToScene(src));
+                sources.forEach(item => this.addPhotoToScene(item));
             }
 
             addPhoto(source, save = false) {
@@ -1012,22 +1072,25 @@
                      this.showingDefaults = false;
                  }
                  
+                 // source can be raw base64 string or object
+                 let photoData = (typeof source === 'string') ? { url: source, source: 'local' } : source;
+
                  // 1. Add to Scene Immediately
-                 this.addPhotoToScene(source);
+                 this.addPhotoToScene(photoData);
                  
                  // 2. Upload if Save
-                 if (save) {
+                 if (save && typeof source === 'string') {
                      if (this.githubStore.isConfigured) {
                          // Show status
                          const statusEl = document.getElementById('status-text');
                          statusEl.style.display = 'block';
                          statusEl.innerText = "正在上传到 GitHub...";
 
-                         this.githubStore.uploadPhoto(source).then(url => {
-                             console.log("Uploaded successfully:", url);
+                         this.githubStore.uploadPhoto(source).then(retUrl => { // Currently uploadPhoto returns url string, TODO: return obj
+                             console.log("Uploaded successfully:", retUrl);
                              statusEl.innerText = "上传成功!";
                              setTimeout(() => { statusEl.style.display = 'none'; }, 2000);
-                             alert(`上传成功!\n图片已保存到 GitHub:\n${url}`);
+                             alert(`上传成功! (需刷新后才能在管理列表看到删除选项)`);
                          }).catch(e => {
                              console.error(e);
                              statusEl.innerText = "上传失败";
@@ -1037,8 +1100,9 @@
                          // Fallback to LocalStorage
                          try {
                              let saved = JSON.parse(localStorage.getItem('xmas_user_photos') || "[]");
-                             if(!saved.includes(source)) {
-                                 saved.push(source);
+                             // Store simple structure
+                             if(!saved.some(s => (typeof s === 'string' ? s : s.url) === photoData.url)) {
+                                 saved.push(photoData);
                                  localStorage.setItem('xmas_user_photos', JSON.stringify(saved));
                              }
                          } catch(e) { console.warn("Storage Full"); }
@@ -1046,14 +1110,92 @@
                  }
             }
 
-            addPhotoToScene(source) {
+            addPhotoToScene(photoData) {
                 const loader = new THREE.TextureLoader();
                 loader.crossOrigin = "Anonymous";
-                loader.load(source, (texture) => {
+                loader.load(photoData.url, (texture) => {
                     texture.colorSpace = THREE.SRGBColorSpace;
-                    this.createPolaroidMesh(texture);
+                    this.createPolaroidMesh(texture, photoData);
                     this.recalcPositions(); 
                 });
+            }
+
+            renderManageList() {
+                const list = document.getElementById('photo-list');
+                list.innerHTML = "";
+                
+                this.photos.forEach((p, idx) => {
+                    // Do not show defaults
+                    if (p.data.source === 'default') return;
+
+                    const div = document.createElement('div');
+                    div.style.position = 'relative';
+                    div.style.width = '100%';
+                    div.style.paddingTop = '100%'; // square
+                    div.style.backgroundImage = `url(${p.data.url})`;
+                    div.style.backgroundSize = 'cover';
+                    div.style.backgroundPosition = 'center';
+                    div.style.border = '1px solid #555';
+                    div.style.borderRadius = '4px';
+
+                    const delBtn = document.createElement('button');
+                    delBtn.innerText = '×';
+                    delBtn.style.position = 'absolute';
+                    delBtn.style.top = '-5px';
+                    delBtn.style.right = '-5px';
+                    delBtn.style.background = 'red';
+                    delBtn.style.color = 'white';
+                    delBtn.style.border = 'none';
+                    delBtn.style.borderRadius = '50%';
+                    delBtn.style.width = '20px';
+                    delBtn.style.height = '20px';
+                    delBtn.style.cursor = 'pointer';
+                    delBtn.title = "删除";
+                    
+                    delBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        if(confirm("确定删除这种照片吗?")) {
+                            this.deletePhoto(idx);
+                            div.remove();
+                        }
+                    };
+
+                    div.appendChild(delBtn);
+                    list.appendChild(div);
+                });
+                
+                if(list.children.length === 0) list.innerHTML = "<span style='color:#666'>无可管理照片</span>";
+            }
+
+            async deletePhoto(index) {
+                const photo = this.photos[index];
+                if (!photo) return;
+                
+                // 1. Remove from Scene
+                this.photoGroup.remove(photo.mesh);
+                this.photos.splice(index, 1);
+                
+                // 2. Remove from Storage
+                if (photo.data.source === 'github' && photo.data.sha) {
+                    // Delete from GitHub
+                    try {
+                        await this.githubStore.deletePhoto(photo.data.path, photo.data.sha);
+                        console.log("Deleted from GitHub");
+                    } catch(e) {
+                         alert("GitHub 删除失败: " + e.message);
+                    }
+                } else if (photo.data.source === 'local') {
+                    // Delete from LocalStorage
+                    let saved = JSON.parse(localStorage.getItem('xmas_user_photos') || "[]");
+                    saved = saved.filter(s => {
+                        const u = (typeof s === 'string') ? s : s.url;
+                        return u !== photo.data.url;
+                    });
+                    localStorage.setItem('xmas_user_photos', JSON.stringify(saved));
+                }
+                
+                // Recalculate layout
+                this.recalcPositions();
             }
             
             clearAll(skipReload = false) {
@@ -1067,7 +1209,7 @@
                 }
             }
 
-            createPolaroidMesh(texture) {
+            createPolaroidMesh(texture, photoData) {
                 const polaroidGroup = new THREE.Group();
                 const pWidth = 3.0; const pHeight = 3.5; 
                 const paperGeo = new THREE.PlaneGeometry(pWidth, pHeight);
@@ -1082,7 +1224,13 @@
                 photo.position.z = 0.02; photo.position.y = 0.2; 
                 
                 polaroidGroup.add(paper); polaroidGroup.add(photo);
-                this.photos.push({ mesh: polaroidGroup, originTree: new THREE.Vector3(), originScatter: new THREE.Vector3() });
+                // Store metadata with text mesh
+                this.photos.push({ 
+                    mesh: polaroidGroup, 
+                    data: photoData,
+                    originTree: new THREE.Vector3(), 
+                    originScatter: new THREE.Vector3() 
+                });
                 this.photoGroup.add(polaroidGroup);
             }
             
