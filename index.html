@@ -203,6 +203,12 @@
         <video id="webcam" autoplay playsinline muted></video>
     </div>
 
+    <!-- Background Music -->
+    <audio id="bgm" loop>
+        <source src="https://upload.wikimedia.org/wikipedia/commons/e/e1/Jingle_Bells_-_Kevin_MacLeod.ogg" type="audio/ogg">
+        <source src="https://upload.wikimedia.org/wikipedia/commons/e/e1/Jingle_Bells_-_Kevin_MacLeod.mp3" type="audio/mpeg">
+    </audio>
+
     <div id="ui-layer">
         <div class="header" style="position: absolute; top: 5%; left: 5%;">
             <h1 style="margin: 0; font-family: 'Dancing Script', cursive; font-size: 4rem; color: #fff; text-shadow: 0 0 30px var(--color-gold);">
@@ -235,6 +241,13 @@
                     <button id="settings-btn" class="custom-btn" title="配置 GitHub 云存储">
                         <svg class="svg-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                         <div id="storage-indicator" style="position:absolute; bottom:5px; right:5px; width:8px; height:8px; border-radius:50%; background:#555; border:1px solid #000;"></div>
+                    </button>
+                    <button id="mute-btn" class="custom-btn" title="静音/播放">
+                        <svg class="svg-icon" viewBox="0 0 24 24" id="mute-icon">
+                            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                            <line x1="23" y1="9" x2="17" y2="15"></line>
+                            <line x1="17" y1="9" x2="23" y2="15"></line>
+                        </svg>
                     </button>
                 </div>
                 <input type="file" id="file-input" accept="image/*" multiple style="display:none;">
@@ -609,6 +622,43 @@
                         this.updateStorageIndicator();
                     } else {
                         alert("请填写完整信息");
+                    }
+                });
+
+                // Audio Control
+                const audio = document.getElementById('bgm');
+                const muteBtn = document.getElementById('mute-btn');
+                const muteIcon = document.getElementById('mute-icon');
+                
+                // Auto-play workaround: Play on first interaction if not started
+                const startAudio = () => {
+                    if(audio.paused) {
+                        audio.volume = 0.3; // Lower volume appropriately
+                        audio.play().catch(e => console.log("Audio play blocked until interaction"));
+                    }
+                    // Remove listeners once tried
+                    document.removeEventListener('click', startAudio);
+                    document.removeEventListener('touchstart', startAudio);
+                };
+                document.addEventListener('click', startAudio);
+                document.addEventListener('touchstart', startAudio);
+
+                muteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation(); // Prevent triggering other click events
+                    if (audio.paused) {
+                        audio.play();
+                        // Show "Volume Up" icon
+                        muteIcon.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>';
+                    } else {
+                        if (audio.muted) {
+                            audio.muted = false;
+                             // Show "Volume Up" icon
+                            muteIcon.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>';
+                        } else {
+                            audio.muted = true;
+                            // Show "Mute" icon
+                            muteIcon.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line>';
+                        }
                     }
                 });
 
