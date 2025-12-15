@@ -263,9 +263,9 @@
                 <input type="password" id="gh-token" placeholder="github_pat_...">
             </div>
             <div style="font-size: 0.75rem; color: #aaa; margin-bottom: 20px; line-height: 1.4;">
-                照片将上传到您的 GitHub 仓库。请确保 Token 拥有权限：<br>
-                <span style="color:#FFD700">Repository permissions -> Contents -> Read and writep</span><br>
-                (不是 Account permissions)
+                照片将上传到您的 GitHub 仓库。<br>
+                <span style="color:#FFA500">安全提示：</span>Token 不会随网页发布，请在此处手动粘贴。<br>
+                Token 需要权限：<span style="color:#FFD700">Repository permissions -> Contents -> Read and write</span>
             </div>
             <div class="modal-actions">
                 <button class="btn-cancel" id="close-settings">关闭</button>
@@ -303,11 +303,11 @@
 
         // --- GitHub 配置区 ---
         // 这里的占位符 '%%...%%' 会在通过 GitHub Actions 发布时自动被替换为 Repository Settings 里的真实值。
-        // 本地运行时，这些值保持不变，应用会自动忽略它们并读取 LocalStorage 或要求手动输入。
+        // 为了安全，Token 不会自动注入，必须由用户在浏览器中手动输入。
         const GITHUB_SECRETS = {
             owner: '%%GH_OWNER%%', 
             repo: '%%GH_REPO%%',   
-            token: '%%GH_TOKEN%%', 
+            // token: 为了安全，此处不配置占位符
             path: 'photos/' 
         };
 
@@ -317,23 +317,27 @@
             }
 
             get config() {
-                // 判断是否是占位符（即本地运行模式）
-                const isBuilt = GITHUB_SECRETS.token && !GITHUB_SECRETS.token.startsWith('%%') && GITHUB_SECRETS.token !== '';
+                const s = GITHUB_SECRETS;
+                const l = this.localConfig;
                 
-                if (isBuilt) {
-                    // 如果已构建注入，优先使用注入的 Secrets
-                    console.log("[GitHub] 使用部署注入的配置");
-                    return GITHUB_SECRETS;
-                } else {
-                    // 否则（本地模式），使用 LocalStorage
-                    console.log("[GitHub] 使用本地配置 (或未配置)");
-                    return {
-                        owner: this.localConfig.owner,
-                        repo: this.localConfig.repo,
-                        token: this.localConfig.token,
-                        path: this.localConfig.path || 'photos/'
-                    };
+                // 辅助函数：如果代码里的值是有效的（非占位符），就用代码里的；否则用本地缓存的
+                const val = (key) => (s[key] && !s[key].startsWith('%%') && s[key] !== '') ? s[key] : l[key];
+
+                const finalConfig = {
+                    owner: val('owner'),
+                    repo: val('repo'),
+                    token: l.token, // Token 强制只从 LocalStorage 读取 (或用户手动输入)
+                    path: val('path') || 'photos/'
+                };
+                
+                // Log only once if not done
+                if (!this._loggedConfig) {
+                    console.log("[GitHub Config] Owner/Repo:", finalConfig.owner, finalConfig.repo, 
+                                "| Token configured:", !!finalConfig.token);
+                    this._loggedConfig = true;
                 }
+                
+                return finalConfig;
             }
 
             get isConfigured() {
