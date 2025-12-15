@@ -263,8 +263,9 @@
                 <input type="password" id="gh-token" placeholder="github_pat_...">
             </div>
             <div style="font-size: 0.75rem; color: #aaa; margin-bottom: 20px; line-height: 1.4;">
-                照片将上传到您的 GitHub 仓库。请确保 Token 拥有 Contents Read/Write 权限。<br>
-                (GitHub Settings > Developer Settings > Personal Access Tokens)
+                照片将上传到您的 GitHub 仓库。请确保 Token 拥有权限：<br>
+                <span style="color:#FFD700">Repository permissions -> Contents -> Read and writep</span><br>
+                (不是 Account permissions)
             </div>
             <div class="modal-actions">
                 <button class="btn-cancel" id="close-settings">关闭</button>
@@ -1013,11 +1014,20 @@
                  // 2. Upload if Save
                  if (save) {
                      if (this.githubStore.isConfigured) {
+                         // Show status
+                         const statusEl = document.getElementById('status-text');
+                         statusEl.style.display = 'block';
+                         statusEl.innerText = "正在上传到 GitHub...";
+
                          this.githubStore.uploadPhoto(source).then(url => {
-                             console.log("Uploaded to GitHub:", url);
-                             // Replace the local dataUrl with remote url? Not strictly necessary for this session.
+                             console.log("Uploaded successfully:", url);
+                             statusEl.innerText = "上传成功!";
+                             setTimeout(() => { statusEl.style.display = 'none'; }, 2000);
+                             alert(`上传成功!\n图片已保存到 GitHub:\n${url}`);
                          }).catch(e => {
-                             alert("上传到 GitHub 失败 (查看控制台)");
+                             console.error(e);
+                             statusEl.innerText = "上传失败";
+                             alert(`上传失败: ${e.message}\n请检查 Token 权限或网络设置。`);
                          });
                      } else {
                          // Fallback to LocalStorage
