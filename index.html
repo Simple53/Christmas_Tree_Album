@@ -234,6 +234,7 @@
                     </button>
                     <button id="settings-btn" class="custom-btn" title="配置 GitHub 云存储">
                         <svg class="svg-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                        <div id="storage-indicator" style="position:absolute; bottom:5px; right:5px; width:8px; height:8px; border-radius:50%; background:#555; border:1px solid #000;"></div>
                     </button>
                 </div>
                 <input type="file" id="file-input" accept="image/*" multiple style="display:none;">
@@ -316,13 +317,15 @@
 
             get config() {
                 // 判断是否是占位符（即本地运行模式）
-                const isBuilt = GITHUB_SECRETS.token && !GITHUB_SECRETS.token.startsWith('%%');
+                const isBuilt = GITHUB_SECRETS.token && !GITHUB_SECRETS.token.startsWith('%%') && GITHUB_SECRETS.token !== '';
                 
                 if (isBuilt) {
                     // 如果已构建注入，优先使用注入的 Secrets
+                    console.log("[GitHub] 使用部署注入的配置");
                     return GITHUB_SECRETS;
                 } else {
                     // 否则（本地模式），使用 LocalStorage
+                    console.log("[GitHub] 使用本地配置 (或未配置)");
                     return {
                         owner: this.localConfig.owner,
                         repo: this.localConfig.repo,
@@ -543,14 +546,27 @@
                         this.githubStore.saveConfig(owner, repo, token, path);
                         alert("配置已保存，即将尝试从 GitHub 加载照片...");
                         settingsModal.classList.add('hidden');
-                        this.world.photoManager.clearAll(true); // Clear local visualization
-                        this.world.photoManager.loadPhotos(); // Reload from GitHub
+                        this.world.photoManager.clearAll(true); 
+                        this.world.photoManager.loadPhotos(); 
+                        this.updateStorageIndicator();
                     } else {
                         alert("请填写完整信息");
                     }
                 });
 
                 this.init();
+                this.updateStorageIndicator();
+            }
+
+            updateStorageIndicator() {
+                const ind = document.getElementById('storage-indicator');
+                if (this.githubStore.isConfigured) {
+                    ind.style.background = '#00FF00'; // Green
+                    ind.title = "已连接 GitHub";
+                } else {
+                    ind.style.background = '#555'; // Gray
+                    ind.title = "本地存储模式 (GitHub 未配置)";
+                }
             }
 
             async init() {
