@@ -170,6 +170,28 @@
             /* Make preview draggable handles easier */
             #video-preview { width: 100px !important; height: 75px !important; cursor: move; }
         }
+
+        /* Settings Modal */
+        #settings-modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); z-index: 200;
+            display: flex; justify-content: center; align-items: center;
+        }
+        .modal-content {
+            background: #111; border: 1px solid #FFD700;
+            padding: 20px; border-radius: 10px; width: 300px;
+            color: #fff; font-family: sans-serif;
+        }
+        .modal-content h2 { margin-top: 0; color: #FFD700; font-size: 1.5rem; text-align: center; font-family: 'Dancing Script', cursive;}
+        .form-group { margin-bottom: 15px; }
+        .form-group label { display: block; margin-bottom: 5px; font-size: 0.9rem; color: #ccc; }
+        .form-group input { 
+            width: 100%; padding: 8px; box-sizing: border-box; 
+            background: #333; border: 1px solid #555; color: #fff; border-radius: 4px;
+        }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+        .btn-save { background: #FFD700; color: #000; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn-cancel { background: #555; color: #fff; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&display=swap" rel="stylesheet">
 </head>
@@ -210,8 +232,42 @@
                     <button id="clear-btn" class="custom-btn" title="清除">
                         <svg class="svg-icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                     </button>
+                    <button id="settings-btn" class="custom-btn" title="配置 GitHub 云存储">
+                        <svg class="svg-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                    </button>
                 </div>
                 <input type="file" id="file-input" accept="image/*" multiple style="display:none;">
+            </div>
+        </div>
+        </div>
+    </div>
+
+    <div id="settings-modal" class="hidden">
+        <div class="modal-content">
+            <h2>GitHub 云存储</h2>
+            <div class="form-group">
+                <label>用户名 (Owner)</label>
+                <input type="text" id="gh-owner" placeholder="GitHub用户名">
+            </div>
+            <div class="form-group">
+                <label>仓库名 (Repo)</label>
+                <input type="text" id="gh-repo" placeholder="仓库名称">
+            </div>
+            <div class="form-group">
+                <label>文件夹 (Path)</label>
+                <input type="text" id="gh-path" value="photos/" placeholder="photos/">
+            </div>
+            <div class="form-group">
+                <label>Token (PAT)</label>
+                <input type="password" id="gh-token" placeholder="github_pat_...">
+            </div>
+            <div style="font-size: 0.75rem; color: #aaa; margin-bottom: 20px; line-height: 1.4;">
+                照片将上传到您的 GitHub 仓库。请确保 Token 拥有 Contents Read/Write 权限。<br>
+                (GitHub Settings > Developer Settings > Personal Access Tokens)
+            </div>
+            <div class="modal-actions">
+                <button class="btn-cancel" id="close-settings">关闭</button>
+                <button class="btn-save" id="save-settings">保存连接</button>
             </div>
         </div>
     </div>
@@ -243,6 +299,68 @@
             treeRadiusBase: 10
         };
 
+        class GithubStore {
+            constructor() {
+                this.config = JSON.parse(localStorage.getItem('xmas_gh_config') || '{}');
+            }
+
+            get isConfigured() {
+                return this.config.owner && this.config.repo && this.config.token;
+            }
+
+            saveConfig(owner, repo, token, path = 'photos/') {
+                this.config = { owner, repo, token, path };
+                if(!this.config.path.endsWith('/')) this.config.path += '/';
+                localStorage.setItem('xmas_gh_config', JSON.stringify(this.config));
+            }
+
+            async fetchPhotos() {
+                if (!this.isConfigured) return [];
+                const url = `https://api.github.com/repos/${this.config.owner}/${this.config.repo}/contents/${this.config.path}`;
+                try {
+                    const res = await fetch(url, {
+                        headers: { 
+                            'Authorization': `Bearer ${this.config.token}`,
+                            'Accept': 'application/vnd.github+json'
+                        }
+                    });
+                    if (!res.ok) throw new Error(res.statusText + " (Is the repo private? Check token)");
+                    const data = await res.json();
+                    if(!Array.isArray(data)) return [];
+                    return data
+                        .filter(file => file.type === 'file' && file.name.match(/\.(jpg|jpeg|png|gif)$/i))
+                        .map(file => file.download_url);
+                } catch (e) {
+                    console.error("GitHub Fetch Error:", e);
+                    return [];
+                }
+            }
+
+            async uploadPhoto(dataUrl) {
+                if (!this.isConfigured) throw new Error("GitHub Not Configured");
+                
+                const filename = 'xmas_' + Date.now() + '.jpg';
+                const content = dataUrl.split(',')[1]; 
+                const url = `https://api.github.com/repos/${this.config.owner}/${this.config.repo}/contents/${this.config.path}${filename}`;
+
+                const res = await fetch(url, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${this.config.token}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        message: "Upload from Xmas App",
+                        content: content
+                    })
+                });
+                
+                if (!res.ok) throw new Error(await res.text());
+                const data = await res.json();
+                return data.content.download_url;
+            }
+        }
+
         class App {
             constructor() {
                 this.container = document.getElementById('canvas-container');
@@ -251,20 +369,22 @@
                 this.loadingMsg = document.getElementById('loading-msg');
                 
                 this.state = 'TREE'; 
+                this.githubStore = new GithubStore();
+
                 try {
-                    this.world = new World(this.container);
+                    this.world = new World(this.container, this.githubStore);
                     this.input = new InputManager(this);
                 } catch(e) { console.error(e); return; }
                 
                 // --- Events ---
                 document.getElementById('file-input').addEventListener('change', (e) => {
                     if (e.target.files && e.target.files.length > 0) {
-                        this.world.photoManager.clearAll(); 
                         Array.from(e.target.files).forEach(file => {
                             this.compressImage(file, (dataUrl) => {
                                 this.world.addPhoto(dataUrl, true);
                             });
                         });
+                        // Don't clear all when adding new ones, unless user wants to
                     }
                 });
 
@@ -354,6 +474,36 @@
                     document.removeEventListener('touchmove', onDrag);
                     document.removeEventListener('touchend', endDrag);
                 }
+                
+                // Settings UI Handlers
+                const settingsModal = document.getElementById('settings-modal');
+                document.getElementById('settings-btn').addEventListener('click', () => {
+                    settingsModal.classList.remove('hidden');
+                    const conf = this.githubStore.config;
+                    if(conf.owner) document.getElementById('gh-owner').value = conf.owner;
+                    if(conf.repo) document.getElementById('gh-repo').value = conf.repo;
+                    if(conf.token) document.getElementById('gh-token').value = conf.token;
+                    if(conf.path) document.getElementById('gh-path').value = conf.path;
+                });
+                document.getElementById('close-settings').addEventListener('click', () => {
+                   settingsModal.classList.add('hidden');
+                });
+                document.getElementById('save-settings').addEventListener('click', () => {
+                    const owner = document.getElementById('gh-owner').value.trim();
+                    const repo = document.getElementById('gh-repo').value.trim();
+                    const token = document.getElementById('gh-token').value.trim();
+                    const path = document.getElementById('gh-path').value.trim();
+                    
+                    if(owner && repo && token) {
+                        this.githubStore.saveConfig(owner, repo, token, path);
+                        alert("配置已保存，即将尝试从 GitHub 加载照片...");
+                        settingsModal.classList.add('hidden');
+                        this.world.photoManager.clearAll(true); // Clear local visualization
+                        this.world.photoManager.loadPhotos(); // Reload from GitHub
+                    } else {
+                        alert("请填写完整信息");
+                    }
+                });
 
                 this.init();
             }
@@ -433,8 +583,9 @@
         }
 
         class World {
-            constructor(container) {
+            constructor(container, githubStore) {
                 this.container = container;
+                this.githubStore = githubStore;
                 this.scene = null;
                 this.camera = null;
                 this.renderer = null;
@@ -476,7 +627,7 @@
                 this.scene.add(this.group);
 
                 this.particles = new Particles(this.group, CONFIG.particleCount);
-                this.photoManager = new PhotoManager(this.group, this.camera); 
+                this.photoManager = new PhotoManager(this.group, this.camera, this.githubStore); 
                 this.star = new Star(this.group);
                 this.snow = new Snow(this.scene); 
 
@@ -711,47 +862,64 @@
 
         // --- PhotoManager ---
         class PhotoManager {
-            constructor(parent, camera) { 
+            constructor(parent, camera, githubStore) { 
                 this.parent = parent;
                 this.camera = camera; 
+                this.githubStore = githubStore;
                 this.photos = [];
                 this.photoGroup = new THREE.Group();
                 this.parent.add(this.photoGroup);
                 this.selectedIndex = -1;
-                this.loadDefaults();
+                this.loadPhotos();
             }
 
-            loadDefaults() {
-                // Try load user photos first
-                let stored = [];
-                try { stored = JSON.parse(localStorage.getItem('xmas_user_photos') || "[]"); } catch(e){}
+            async loadPhotos() {
+                let sources = [];
                 
-                if (stored.length > 0) {
-                     stored.forEach(src => this.addPhoto(src, false));
-                } else {
-                    // Defaults
-                    let sources = [
+                // 1. Try GitHub
+                if (this.githubStore.isConfigured) {
+                    try {
+                        sources = await this.githubStore.fetchPhotos();
+                        console.log("Loaded from GitHub:", sources.length);
+                    } catch(e) { console.error(e); }
+                }
+
+                // 2. If no GitHub or empty, try LocalStorage
+                if (sources.length === 0) {
+                     try { sources = JSON.parse(localStorage.getItem('xmas_user_photos') || "[]"); } catch(e){}
+                }
+
+                // 3. If still empty, use Defaults
+                if (sources.length === 0) {
+                    let defaults = [
                          'https://images.unsplash.com/photo-1543589077-47d81606c1bf?auto=format&fit=crop&w=500&q=60',
                         'https://images.unsplash.com/photo-1511268011861-691ed6d906a0?auto=format&fit=crop&w=500&q=60',
                         'https://images.unsplash.com/photo-1576919228236-a097c32a5cd4?auto=format&fit=crop&w=500&q=60',
                         'https://images.unsplash.com/photo-1482517967863-00e15c9b44be?auto=format&fit=crop&w=500&q=60'
                     ];
-                    const minPhotos = 12;
-                    while (sources.length < minPhotos) sources = sources.concat(sources);
-                    sources = sources.slice(0, 16); 
-                    sources.forEach(src => this.addPhoto(src, false));
+                    // Make it look full
+                    while (defaults.length < 12) defaults = defaults.concat(defaults);
+                    sources = defaults.slice(0, 16);
                 }
+
+                sources.forEach(src => this.addPhotoToScene(src));
             }
 
             addPhoto(source, save = false) {
-                const loader = new THREE.TextureLoader();
-                loader.crossOrigin = "Anonymous";
-                loader.load(source, (texture) => {
-                    texture.colorSpace = THREE.SRGBColorSpace;
-                    this.createPolaroidMesh(texture);
-                    this.recalcPositions(); 
-                    
-                    if (save) {
+                 // 1. Add to Scene Immediately
+                 this.addPhotoToScene(source);
+                 
+                 // 2. Upload if Save
+                 if (save) {
+                     if (this.githubStore.isConfigured) {
+                         this.githubStore.uploadPhoto(source).then(url => {
+                             console.log("Uploaded to GitHub:", url);
+                             // Replace the local dataUrl with remote url? Not strictly necessary for this session.
+                         }).catch(e => {
+                             alert("上传到 GitHub 失败 (查看控制台)");
+                         });
+                     } else {
+                         // Fallback to LocalStorage
                          try {
                              let saved = JSON.parse(localStorage.getItem('xmas_user_photos') || "[]");
                              if(!saved.includes(source)) {
@@ -759,19 +927,29 @@
                                  localStorage.setItem('xmas_user_photos', JSON.stringify(saved));
                              }
                          } catch(e) { console.warn("Storage Full"); }
-                    }
+                     }
+                 }
+            }
+
+            addPhotoToScene(source) {
+                const loader = new THREE.TextureLoader();
+                loader.crossOrigin = "Anonymous";
+                loader.load(source, (texture) => {
+                    texture.colorSpace = THREE.SRGBColorSpace;
+                    this.createPolaroidMesh(texture);
+                    this.recalcPositions(); 
                 });
             }
             
-            clearAll() {
+            clearAll(skipReload = false) {
                 this.photos.forEach(p => this.photoGroup.remove(p.mesh));
                 this.photos = [];
                 this.selectedIndex = -1;
-                localStorage.removeItem('xmas_user_photos'); 
-                // Don't reload defaults immediately, let user see empty stats or re-upload
-                // Or reload defaults? User said "Clear". 
-                // If I leave empty, it might crash loops. Let's reload defaults actually.
-                this.loadDefaults();
+                if (!skipReload) {
+                     localStorage.removeItem('xmas_user_photos'); 
+                     // Reload Defaults
+                     this.loadPhotos(); 
+                }
             }
 
             createPolaroidMesh(texture) {
