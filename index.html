@@ -75,6 +75,7 @@
             transform: scaleX(-1);
             background: #000;
             opacity: 1;
+            pointer-events: auto; /* 确保预览窗口可以交互 */
         }
 
         #webcam { width: 100%; height: 100%; object-fit: cover; }
@@ -100,7 +101,7 @@
             display: flex; justify-content: flex-end; align-items: flex-end;
         }
         #instructions.minimized .content { display: none; }
-        #instructions.minimized #toggle-instructions { display: none; } /* Hide the close arrow when minimized */
+        #instructions.minimized #toggle-instructions { display: none; }
         #instructions.minimized::after { 
             content: '☰'; 
             font-size: 2rem; 
@@ -119,6 +120,7 @@
         }
 
         .custom-btn {
+            position: relative;
             background: transparent;
             border: none;
             color: #fff;
@@ -130,6 +132,14 @@
             transition: transform 0.2s;
         }
         .custom-btn:hover { transform: scale(1.2); }
+        
+        /* Generic Modal Style */
+        .modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); z-index: 200;
+            display: flex; justify-content: center; align-items: center;
+        }
+
         .close-btn {
             position: absolute;
             top: 5px;
@@ -152,14 +162,16 @@
         
         .svg-icon { width: 24px; height: 24px; stroke: #fff; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
 
-        #clear-btn { background: transparent; }
-        .hidden { opacity: 0; pointer-events: none; transition: opacity 0.5s; }
+        .hidden { opacity: 0; pointer-events: none; transition: opacity 0.5s; visibility: hidden; } /* 添加 visibility 确保彻底隐藏 */
+        
+        .modal:not(.hidden) { visibility: visible; } /* 显示时恢复可见 */
+
         @media (max-width: 768px) {
             .header h1 { font-size: 3rem !important; }
             #instructions { 
                 bottom: 10px; 
                 right: 10px; 
-                left: auto; /* Not full width */
+                left: auto;
                 width: auto;
                 max-width: 260px;
                 background: rgba(0, 0, 0, 0.5) !important;
@@ -170,20 +182,15 @@
             .custom-btn { padding: 4px; } 
             .svg-icon { width: 20px; height: 20px; }
             #instructions .hud-text { font-size: 1rem; }
-            /* Make preview draggable handles easier */
             #video-preview { width: 100px !important; height: 75px !important; cursor: move; }
         }
 
         /* Settings Modal */
-        #settings-modal {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8); z-index: 200;
-            display: flex; justify-content: center; align-items: center;
-        }
         .modal-content {
             background: #111; border: 1px solid #FFD700;
             padding: 20px; border-radius: 10px; width: 300px;
             color: #fff; font-family: sans-serif;
+            position: relative; /* 确保内部绝对定位元素正常 */
         }
         .modal-content h2 { margin-top: 0; color: #FFD700; font-size: 1.5rem; text-align: center; font-family: 'Dancing Script', cursive;}
         .form-group { margin-bottom: 15px; }
@@ -192,7 +199,7 @@
             width: 100%; padding: 8px; box-sizing: border-box; 
             background: #333; border: 1px solid #555; color: #fff; border-radius: 4px;
         }
-        .modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 15px; }
         .btn-save { background: #FFD700; color: #000; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; }
         .btn-cancel { background: #555; color: #fff; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; }
     </style>
@@ -206,10 +213,8 @@
         <video id="webcam" autoplay playsinline muted></video>
     </div>
 
-    <!-- Background Music -->
-    <!-- Background Music -->
     <audio id="bgm" loop preload="auto">
-        <source src="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-15.mp3" type="audio/mpeg">
+        <source src="./jingle_bells.mp3" type="audio/mpeg">
     </audio>
 
     <div id="ui-layer">
@@ -235,12 +240,15 @@
                     <button id="toggle-preview-btn" class="custom-btn" title="显示/隐藏 预览">
                         <svg class="svg-icon" viewBox="0 0 24 24"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
                     </button>
-                    <label for="file-input" class="custom-btn" title="上传">
+                    <button id="upload-trigger-btn" class="custom-btn" title="上传">
                          <svg class="svg-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
-                    </label>
+                    </button>
                     <button id="clear-btn" class="custom-btn" title="管理/清除照片">
                         <svg class="svg-icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
                         <div id="storage-indicator" style="position:absolute; bottom:5px; right:5px; width:6px; height:6px; border-radius:50%; background:#555; border:1px solid #000;"></div>
+                    </button>
+                    <button id="settings-btn" class="custom-btn" title="配置 GitHub 云存储">
+                        <svg class="svg-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                     </button>
                     <button id="mute-btn" class="custom-btn" title="静音/播放">
                         <svg class="svg-icon" viewBox="0 0 24 24" id="mute-icon">
@@ -253,12 +261,10 @@
                 <input type="file" id="file-input" accept="image/*" multiple style="display:none;">
             </div>
         </div>
-        </div>
-    </div>
-
-    <div id="settings-modal" class="hidden">
+    </div> 
+    <div id="settings-modal" class="modal hidden">
         <div class="modal-content">
-            <h2>GitHub 云存储</h2>
+            <h2>GitHub云存储</h2>
             <div class="form-group">
                 <label>用户名 (Owner)</label>
                 <input type="text" id="gh-owner" placeholder="GitHub用户名">
@@ -277,18 +283,17 @@
             </div>
             <div style="font-size: 0.75rem; color: #aaa; margin-bottom: 20px; line-height: 1.4;">
                 照片将上传到您的 GitHub 仓库。<br>
-            <div class="modal-actions">
+            </div> <div class="modal-actions">
                 <button class="btn-cancel" id="close-settings">关闭</button>
                 <button class="btn-save" id="save-settings">保存连接</button>
             </div>
         </div>
     </div>
 
-    <!-- Manage Photos Modal -->
     <div id="manage-modal" class="modal hidden">
         <div class="modal-content" style="max-width: 600px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
-                <h2 style="margin:0;">管理照片</h2>
+                <h2 style="margin:0;">图库</h2>
                 <button id="open-github-settings" class="custom-btn" title="GitHub 设置" style="background:#333; padding:5px 10px; border-radius:4px; border:1px solid #555;">⚙️ 设置</button>
             </div>
             
@@ -298,8 +303,7 @@
             <div style="max-height: 400px; overflow-y: auto; text-align: left;">
                 <p style="color:#aaa; font-size:14px; margin-bottom:10px;">点击删除单张 (只会删除已上传的照片, 默认展示图无法删除)</p>
                 <div id="photo-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 10px;">
-                    <!-- Items populated by JS -->
-                </div>
+                    </div>
             </div>
             <div class="modal-actions" style="margin-top:20px;">
                 <button class="btn-cancel" id="close-manage">关闭</button>
@@ -334,13 +338,9 @@
             treeRadiusBase: 10
         };
 
-        // --- GitHub 配置区 ---
-        // 这里的占位符 '%%...%%' 会在通过 GitHub Actions 发布时自动被替换为 Repository Settings 里的真实值。
-        // 为了安全，Token 不会自动注入，必须由用户在浏览器中手动输入。
         const GITHUB_SECRETS = {
             owner: '%%GH_OWNER%%', 
-            repo: '%%GH_REPO%%',   
-            // token: 为了安全，此处不配置占位符
+            repo: '%%GH_REPO%%',    
             path: 'photos/' 
         };
 
@@ -353,17 +353,15 @@
                 const s = GITHUB_SECRETS;
                 const l = this.localConfig;
                 
-                // 辅助函数：如果代码里的值是有效的（非占位符），就用代码里的；否则用本地缓存的
                 const val = (key) => (s[key] && !s[key].startsWith('%%') && s[key] !== '') ? s[key] : l[key];
 
                 const finalConfig = {
                     owner: val('owner'),
                     repo: val('repo'),
-                    token: l.token, // Token 强制只从 LocalStorage 读取 (或用户手动输入)
+                    token: l.token, 
                     path: val('path') || 'photos/'
                 };
                 
-                // Log only once if not done
                 if (!this._loggedConfig) {
                     console.log("[GitHub Config] Owner/Repo:", finalConfig.owner, finalConfig.repo, 
                                 "| Token configured:", !!finalConfig.token);
@@ -472,18 +470,46 @@
                 } catch(e) { console.error(e); return; }
                 
                 // --- Events ---
-                document.getElementById('file-input').addEventListener('change', (e) => {
+                // 使用 JS 触发 Input 点击，更可靠
+                document.getElementById('upload-trigger-btn').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    document.getElementById('file-input').click();
+                });
+
+                document.getElementById('file-input').addEventListener('change', async (e) => {
                     if (e.target.files && e.target.files.length > 0) {
-                        Array.from(e.target.files).forEach(file => {
-                            this.compressImage(file, (dataUrl) => {
-                                this.world.addPhoto(dataUrl, true);
+                        const files = Array.from(e.target.files);
+                        this.statusEl.style.display = 'block';
+                        this.statusEl.innerText = `准备上传 ${files.length} 张照片...`;
+                        
+                        let successCount = 0;
+                        let failCount = 0;
+                        
+                        const uploadPromises = files.map(file => {
+                            return new Promise(resolve => {
+                                this.compressImage(file, async (dataUrl) => {
+                                    const result = await this.world.photoManager.addPhoto(dataUrl, true);
+                                    if(result && result.success) successCount++;
+                                    else failCount++;
+                                    resolve();
+                                });
                             });
                         });
-                        // Don't clear all when adding new ones, unless user wants to
+                        
+                        await Promise.all(uploadPromises);
+                        
+                        this.statusEl.style.display = 'none';
+                        if (this.githubStore.isConfigured) {
+                             if(failCount === 0) alert(`成功上传 ${successCount} 张照片!`);
+                             else alert(`上传完成。\n成功: ${successCount}\n失败: ${failCount}\n(请检查网络或Token)`);
+                        }
+                        
+                        e.target.value = '';
                     }
                 });
 
-                document.getElementById('clear-btn').addEventListener('click', () => {
+                document.getElementById('clear-btn').addEventListener('click', (e) => {
+                    e.stopPropagation();
                     document.getElementById('manage-modal').classList.remove('hidden');
                     this.world.photoManager.renderManageList();
                 });
@@ -499,10 +525,6 @@
                     }
                 });
                 
-                document.getElementById('clear-btn').addEventListener('click', () => {
-                    if(confirm("清除所有照片?")) this.world.photoManager.clearAll();
-                });
-                
                 this.container.addEventListener('click', () => {
                       if(this.state !== 'ZOOM') {
                            this.state === 'TREE' ? this.setState('SCATTER') : this.setState('TREE');
@@ -510,8 +532,8 @@
                 });
 
                 this.container.addEventListener('dblclick', (e) => {
-                     e.preventDefault();
-                     this.handleDoubleClick(e);
+                      e.preventDefault();
+                      this.handleDoubleClick(e);
                 });
                 
                 // UI Event Listeners
@@ -519,14 +541,13 @@
                 document.getElementById('toggle-instructions').addEventListener('click', (e) => {
                     e.stopPropagation();
                     instr.classList.toggle('minimized');
-                    // Toggle triangle direction
                     e.target.style.transform = instr.classList.contains('minimized') ? 'rotate(180deg)' : 'rotate(0deg)';
                 });
                 instr.addEventListener('click', (e) => {
-                     if(instr.classList.contains('minimized')) {
-                         instr.classList.remove('minimized');
-                         document.getElementById('toggle-instructions').style.transform = 'rotate(0deg)';
-                     }
+                      if(instr.classList.contains('minimized')) {
+                          instr.classList.remove('minimized');
+                          document.getElementById('toggle-instructions').style.transform = 'rotate(0deg)';
+                      }
                 });
                 
                 // Draggable Preview
@@ -546,7 +567,6 @@
                 preview.addEventListener('touchstart', startDrag, {passive: false});
                 
                 function startDrag(e) {
-                    // Check if clicked element is close button or inside it
                     if(e.target.closest('#close-preview')) return;
                     
                     isDragging = true;
@@ -571,7 +591,6 @@
                     let newLeft = clientX - dragOffset.x;
                     let newTop = clientY - dragOffset.y;
                     
-                    // Boundaries
                     newLeft = Math.max(0, Math.min(window.innerWidth - preview.offsetWidth, newLeft));
                     newTop = Math.max(0, Math.min(window.innerHeight - preview.offsetHeight, newTop));
                     
@@ -589,38 +608,31 @@
                     document.removeEventListener('touchend', endDrag);
                 }
                 
-                function endDrag() {
-                    isDragging = false;
-                    document.removeEventListener('mousemove', onDrag);
-                    document.removeEventListener('mouseup', endDrag);
-                    document.removeEventListener('touchmove', onDrag);
-                    document.removeEventListener('touchend', endDrag);
-                }
-                
                 // Settings UI Handlers
                 const settingsModal = document.getElementById('settings-modal');
                 const manageModal = document.getElementById('manage-modal');
 
-                // Open Manage Modal is handled by clear-btn listener below
-                
-                // Open Settings from Manage Modal
-                document.getElementById('open-github-settings').addEventListener('click', () => {
-                     // manageModal.classList.add('hidden'); // Optional: hide manage modal? Better to keep it or layer them.
-                     // Let's layer settings on top, or switch. Let's switch.
-                     manageModal.classList.add('hidden');
-                     settingsModal.classList.remove('hidden');
-                     
-                     const conf = this.githubStore.config;
-                     if(conf.owner) document.getElementById('gh-owner').value = conf.owner;
-                     if(conf.repo) document.getElementById('gh-repo').value = conf.repo;
-                     if(conf.token) document.getElementById('gh-token').value = conf.token;
-                     if(conf.path) document.getElementById('gh-path').value = conf.path;
+                document.getElementById('open-github-settings').addEventListener('click', (e) => {
+                      e.stopPropagation();
+                      manageModal.classList.add('hidden');
+                      settingsModal.classList.remove('hidden');
+                      
+                      const conf = this.githubStore.config;
+                      if(conf.owner) document.getElementById('gh-owner').value = conf.owner;
+                      if(conf.repo) document.getElementById('gh-repo').value = conf.repo;
+                      if(conf.token) document.getElementById('gh-token').value = conf.token;
+                      if(conf.path) document.getElementById('gh-path').value = conf.path;
                 });
                 
-                /* 
-                // Removed main settings btn listener as button is removed
-                document.getElementById('settings-btn').addEventListener('click', () => { ... });
-                */
+                document.getElementById('settings-btn').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    settingsModal.classList.remove('hidden');
+                    const conf = this.githubStore.config;
+                    if(conf.owner) document.getElementById('gh-owner').value = conf.owner;
+                    if(conf.repo) document.getElementById('gh-repo').value = conf.repo;
+                    if(conf.token) document.getElementById('gh-token').value = conf.token;
+                    if(conf.path) document.getElementById('gh-path').value = conf.path;
+                });
                 document.getElementById('close-settings').addEventListener('click', () => {
                    settingsModal.classList.add('hidden');
                 });
@@ -647,13 +659,11 @@
                 const muteBtn = document.getElementById('mute-btn');
                 const muteIcon = document.getElementById('mute-icon');
                 
-                // Auto-play workaround: Play on first interaction if not started
                 const startAudio = () => {
                     if(audio.paused) {
-                        audio.volume = 0.3; // Lower volume appropriately
+                        audio.volume = 0.3; 
                         audio.play().catch(e => console.log("Audio play blocked until interaction"));
                     }
-                    // Remove listeners once tried
                     document.removeEventListener('click', startAudio);
                     document.removeEventListener('touchstart', startAudio);
                 };
@@ -661,19 +671,16 @@
                 document.addEventListener('touchstart', startAudio);
 
                 muteBtn.addEventListener('click', (e) => {
-                    e.stopPropagation(); // Prevent triggering other click events
+                    e.stopPropagation(); 
                     if (audio.paused) {
                         audio.play();
-                        // Show "Volume Up" icon
                         muteIcon.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>';
                     } else {
                         if (audio.muted) {
                             audio.muted = false;
-                             // Show "Volume Up" icon
                             muteIcon.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>';
                         } else {
                             audio.muted = true;
-                            // Show "Mute" icon
                             muteIcon.innerHTML = '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line>';
                         }
                     }
@@ -686,10 +693,10 @@
             updateStorageIndicator() {
                 const ind = document.getElementById('storage-indicator');
                 if (this.githubStore.isConfigured) {
-                    ind.style.background = '#00FF00'; // Green
+                    ind.style.background = '#00FF00'; 
                     ind.title = "已连接 GitHub";
                 } else {
-                    ind.style.background = '#555'; // Gray
+                    ind.style.background = '#555'; 
                     ind.title = "本地存储模式 (GitHub 未配置)";
                 }
             }
@@ -720,14 +727,13 @@
             }
 
             handleGesture(gesture) {
-                // Global Switch (works in ZOOM mainly, but can work in SCATTER too)
                 if (gesture === 'TILT_LEFT') {
                     this.world.photoManager.prevPhoto();
                     console.log('Prev Photo');
                 }
                 if (gesture === 'TILT_RIGHT') {
-                     this.world.photoManager.nextPhoto();
-                     console.log('Next Photo');
+                      this.world.photoManager.nextPhoto();
+                      console.log('Next Photo');
                 }
 
                 if (this.state === 'TREE') {
@@ -749,7 +755,6 @@
             }
             
             handleDoubleClick(e) {
-                // Raycasting for Photo Selection
                 const mouse = new THREE.Vector2();
                 mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
                 mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
@@ -757,25 +762,18 @@
                 const raycaster = new THREE.Raycaster();
                 raycaster.setFromCamera(mouse, this.world.camera);
                 
-                // Check intersections with photos
-                // We need to traverse photos to find matches.
-                // Photos are in this.world.photoManager.photoGroup
-                // But photos are Groups (Paper + Image). We hit the Mesh inside group.
-                
                 let intersects = raycaster.intersectObjects(this.world.photoManager.photoGroup.children, true);
                 if(intersects.length > 0) {
-                     // Find which photo index
-                     const hitObj = intersects[0].object;
-                     const photoGroup = hitObj.parent; // The group containing paper & photo
-                     
-                     const idx = this.world.photoManager.photos.findIndex(p => p.mesh === photoGroup);
-                     if(idx !== -1) {
-                         this.world.photoManager.selectedIndex = idx;
-                         this.setState('ZOOM');
-                     }
+                      const hitObj = intersects[0].object;
+                      const photoGroup = hitObj.parent; 
+                      
+                      const idx = this.world.photoManager.photos.findIndex(p => p.mesh === photoGroup);
+                      if(idx !== -1) {
+                          this.world.photoManager.selectedIndex = idx;
+                          this.setState('ZOOM');
+                      }
                 } else {
-                     // Double click background? Maybe toggle out of zoom
-                     if(this.state === 'ZOOM') this.setState('SCATTER');
+                      if(this.state === 'ZOOM') this.setState('SCATTER');
                 }
             }
 
@@ -879,7 +877,7 @@
                          this.group.rotation.y += 0.001; // Slow idle
                     }
                 } else if (state !== 'ZOOM') {
-                     this.group.rotation.y += 0.001;
+                      this.group.rotation.y += 0.001;
                 }
             }
 
@@ -889,10 +887,9 @@
                 if(newState === 'TREE') {
                     if(this.photoManager) this.photoManager.deselect();
                 } else if (newState === 'ZOOM') {
-                     // Select the photo visually closest to the camera (center of screen)
-                     if(this.photoManager) {
-                         this.photoManager.selectClosestToCamera();
-                     }
+                      if(this.photoManager) {
+                          this.photoManager.selectClosestToCamera();
+                      }
                 }
             }
         }
@@ -913,24 +910,21 @@
             }
 
             init() {
-                // Gold Spiral Spheres (Colored & Opaque)
                 const matSphere = new THREE.MeshPhongMaterial({ 
                     color: 0xFFD700, shininess: 100, emissive: 0x221100
                 });
 
-                // Ambient Glow (Solid)
                 const matGlow = new THREE.MeshBasicMaterial({ 
                     color: 0xFFD700 
                 });
 
-                // Sparkles (Solid)
                 const matSparkle = new THREE.MeshBasicMaterial({ 
                     color: 0xFFFFFF  
                 });
 
                 const geoSphere = new THREE.SphereGeometry(0.15, 16, 16);  
-                const geoGlow = new THREE.BoxGeometry(0.2, 0.2, 0.2); // Soft Cubes
-                const geoSparkle = new THREE.OctahedronGeometry(0.12, 0); // Sharp Stars
+                const geoGlow = new THREE.BoxGeometry(0.2, 0.2, 0.2); 
+                const geoSparkle = new THREE.OctahedronGeometry(0.12, 0);
 
                 this.initMesh(0, geoSphere, matSphere);
                 this.initMesh(1, geoGlow, matGlow);
@@ -952,7 +946,6 @@
                 const hRange = CONFIG.treeHeight;
                 const loops = CONFIG.spiralLoops;
                 
-                // 1. Gold Spiral
                 const sphereShape = this.shapes[0];
                 for (let i = 0; i < sphereShape.count; i++) {
                     const t = (i / sphereShape.count); 
@@ -963,7 +956,6 @@
                     
                     sphereShape.positionsTree.push({ x: radius * Math.cos(angle), y: h, z: radius * Math.sin(angle) }); 
                     
-                    // Scatter Ring
                     const ringR = 18; 
                     const ringAngle = (i / sphereShape.count) * Math.PI * 2;
                     sphereShape.positionsScatter.push({
@@ -974,20 +966,17 @@
                     sphereShape.currentPositions.push({ ...sphereShape.positionsTree[i] });
                 }
 
-                // 2 & 3. Glow & Sparkles (Fill the volume)
                 [this.shapes[1], this.shapes[2]].forEach(shape => {
                     for (let i = 0; i < shape.count; i++) {
-                        // Tree: Volume Cone
                         const h = Math.random() * hRange - hRange/2;
                         const normH = (h + hRange/2) / hRange;
-                        const maxR = (1 - normH) * (CONFIG.treeRadiusBase + 1); // Slightly wider glow
+                        const maxR = (1 - normH) * (CONFIG.treeRadiusBase + 1); 
                         const r = Math.sqrt(Math.random()) * maxR; 
                         const theta = Math.random() * Math.PI * 2;
                         
                         shape.positionsTree.push({ x: r * Math.cos(theta), y: h, z: r * Math.sin(theta) });
 
-                         // Scatter: Cloud
-                        const rS = 22 + (Math.random() - 0.5) * 12;
+                         const rS = 22 + (Math.random() - 0.5) * 12;
                         const thetaS = Math.random() * Math.PI * 2;
                         const yS = (Math.random() - 0.5) * 20;
                          shape.positionsScatter.push({ x: rS * Math.cos(thetaS), y: yS, z: rS * Math.sin(thetaS) });
@@ -998,11 +987,8 @@
             }
 
             assignColors() {
-                // Gold/Warm Palette for Glow
                 const paletteGlow = [ new THREE.Color(0xFFD700), new THREE.Color(0xFFA500), new THREE.Color(0xFFFFE0) ];
-                // Sparkle Palette
                 const paletteSparkle = [ new THREE.Color(0xFFFFFF), new THREE.Color(0xFFD700) ];
-                // Spiral Palette (Gold + Vibrant Highlights)
                 const paletteSphere = [ new THREE.Color(0xFFD700), new THREE.Color(0xFF0000), new THREE.Color(0x00FF00), new THREE.Color(0x0088FF) ];
 
                 this.shapes.forEach((shape, idx) => {
@@ -1020,7 +1006,6 @@
 
             update(time, targetState) {
                 const lerpFactor = 0.08; 
-                // Flash Effects
                 if (Math.floor(time * 8) > this.lastFlashTime) {
                     this.lastFlashTime = Math.floor(time * 8);
                     const shape = this.shapes[0]; 
@@ -1040,7 +1025,6 @@
                         const cur = shape.currentPositions[i];
                         let tgt = targetPositions[i];
                         
-                        // In Zoom, spread particles out more
                         if (targetState === 'ZOOM') {
                              tgt = shape.positionsScatter[i];
                         }
@@ -1057,12 +1041,10 @@
                              needsUpdate = true;
                         }
                         
-                        // Twinkle rotation
                         this.dummy.position.set(cur.x, cur.y, cur.z);
                         if (sIdx > 0) { 
                             this.dummy.rotation.x = time + i; 
                             this.dummy.rotation.y = time * 0.5; 
-                            // Pulse scale for glow
                             const s = 1.0 + 0.3 * Math.sin(time * 5 + i);
                             this.dummy.scale.set(s,s,s);
                         } else {
@@ -1077,7 +1059,6 @@
             updateMesh(force) { if (force) this.update(0, 'TREE'); }
         }
 
-        // --- PhotoManager ---
         class PhotoManager {
             constructor(parent, camera, githubStore) { 
                 this.parent = parent;
@@ -1095,7 +1076,6 @@
                 let sources = [];
                 this.showingDefaults = false;
                 
-                // 1. Try GitHub
                 if (this.githubStore.isConfigured) {
                     try {
                         const items = await this.githubStore.fetchPhotos();
@@ -1104,18 +1084,16 @@
                     } catch(e) { console.error(e); }
                 }
 
-                // 2. If no GitHub or empty, try LocalStorage
                 if (sources.length === 0) {
-                     try { 
-                         const raw = JSON.parse(localStorage.getItem('xmas_user_photos') || "[]");
-                         sources = raw.map(item => {
-                             if(typeof item === 'string') return { url: item, source: 'local' };
-                             return item;
-                         });
-                     } catch(e){}
+                      try { 
+                          const raw = JSON.parse(localStorage.getItem('xmas_user_photos') || "[]");
+                          sources = raw.map(item => {
+                              if(typeof item === 'string') return { url: item, source: 'local' };
+                              return item;
+                          });
+                      } catch(e){}
                 }
 
-                // 3. If still empty, use Defaults
                 if (sources.length === 0) {
                     let defaults = [
                          'https://images.unsplash.com/photo-1543589077-47d81606c1bf?auto=format&fit=crop&w=500&q=60',
@@ -1123,7 +1101,6 @@
                         'https://images.unsplash.com/photo-1576919228236-a097c32a5cd4?auto=format&fit=crop&w=500&q=60',
                         'https://images.unsplash.com/photo-1482517967863-00e15c9b44be?auto=format&fit=crop&w=500&q=60'
                     ];
-                    // Make it look full
                     while (defaults.length < 12) defaults = defaults.concat(defaults);
                     sources = defaults.slice(0, 16).map(url => ({ url: url, source: 'default' }));
                     this.showingDefaults = true;
@@ -1133,48 +1110,36 @@
             }
 
             addPhoto(source, save = false) {
-                 // Check if showing defaults, clear them first if so
                  if(this.showingDefaults) {
-                     this.clearAll(true); // Clear scene only
+                     this.clearAll(true); 
                      this.showingDefaults = false;
                  }
                  
-                 // source can be raw base64 string or object
                  let photoData = (typeof source === 'string') ? { url: source, source: 'local' } : source;
 
-                 // 1. Add to Scene Immediately
                  this.addPhotoToScene(photoData);
                  
-                 // 2. Upload if Save
                  if (save && typeof source === 'string') {
                      if (this.githubStore.isConfigured) {
-                         // Show status
-                         const statusEl = document.getElementById('status-text');
-                         statusEl.style.display = 'block';
-                         statusEl.innerText = "正在上传到 GitHub...";
-
-                         this.githubStore.uploadPhoto(source).then(retUrl => { // Currently uploadPhoto returns url string, TODO: return obj
+                         return this.githubStore.uploadPhoto(source).then(retUrl => { 
                              console.log("Uploaded successfully:", retUrl);
-                             statusEl.innerText = "上传成功!";
-                             setTimeout(() => { statusEl.style.display = 'none'; }, 2000);
-                             alert(`上传成功! (需刷新后才能在管理列表看到删除选项)`);
+                             return { success: true, url: retUrl };
                          }).catch(e => {
-                             console.error(e);
-                             statusEl.innerText = "上传失败";
-                             alert(`上传失败: ${e.message}\n请检查 Token 权限或网络设置。`);
+                             console.error("Upload failed", e);
+                             return { success: false, error: e.message };
                          });
                      } else {
-                         // Fallback to LocalStorage
                          try {
                              let saved = JSON.parse(localStorage.getItem('xmas_user_photos') || "[]");
-                             // Store simple structure
                              if(!saved.some(s => (typeof s === 'string' ? s : s.url) === photoData.url)) {
                                  saved.push(photoData);
                                  localStorage.setItem('xmas_user_photos', JSON.stringify(saved));
                              }
                          } catch(e) { console.warn("Storage Full"); }
+                         return Promise.resolve({ success: true, source: 'local' });
                      }
                  }
+                 return Promise.resolve({ success: true, source: 'nosave' });
             }
 
             addPhotoToScene(photoData) {
@@ -1192,13 +1157,12 @@
                 list.innerHTML = "";
                 
                 this.photos.forEach((p, idx) => {
-                    // Do not show defaults
                     if (p.data.source === 'default') return;
 
                     const div = document.createElement('div');
                     div.style.position = 'relative';
                     div.style.width = '100%';
-                    div.style.paddingTop = '100%'; // square
+                    div.style.paddingTop = '100%'; 
                     div.style.backgroundImage = `url(${p.data.url})`;
                     div.style.backgroundSize = 'cover';
                     div.style.backgroundPosition = 'center';
@@ -1238,13 +1202,10 @@
                 const photo = this.photos[index];
                 if (!photo) return;
                 
-                // 1. Remove from Scene
                 this.photoGroup.remove(photo.mesh);
                 this.photos.splice(index, 1);
                 
-                // 2. Remove from Storage
                 if (photo.data.source === 'github' && photo.data.sha) {
-                    // Delete from GitHub
                     try {
                         await this.githubStore.deletePhoto(photo.data.path, photo.data.sha);
                         console.log("Deleted from GitHub");
@@ -1252,7 +1213,6 @@
                          alert("GitHub 删除失败: " + e.message);
                     }
                 } else if (photo.data.source === 'local') {
-                    // Delete from LocalStorage
                     let saved = JSON.parse(localStorage.getItem('xmas_user_photos') || "[]");
                     saved = saved.filter(s => {
                         const u = (typeof s === 'string') ? s : s.url;
@@ -1261,7 +1221,6 @@
                     localStorage.setItem('xmas_user_photos', JSON.stringify(saved));
                 }
                 
-                // Recalculate layout
                 this.recalcPositions();
             }
             
@@ -1271,7 +1230,6 @@
                 this.selectedIndex = -1;
                 if (!skipReload) {
                      localStorage.removeItem('xmas_user_photos'); 
-                     // Reload Defaults
                      this.loadPhotos(); 
                 }
             }
@@ -1291,7 +1249,6 @@
                 photo.position.z = 0.02; photo.position.y = 0.2; 
                 
                 polaroidGroup.add(paper); polaroidGroup.add(photo);
-                // Store metadata with text mesh
                 this.photos.push({ 
                     mesh: polaroidGroup, 
                     data: photoData,
@@ -1307,7 +1264,6 @@
                 const loops = CONFIG.spiralLoops;
 
                 this.photos.forEach((p, i) => {
-                    // Tree: Push OUT further (radius + 2.5)
                     const t = i / (count || 1);
                     const h = (hRange/2) - t * hRange;
                     const angle = t * Math.PI * 2 * loops; 
@@ -1315,7 +1271,6 @@
                     const r = (1 - normH) * CONFIG.treeRadiusBase + 2.5; 
                     p.originTree.set(r * Math.cos(angle), h, r * Math.sin(angle));
 
-                    // Scatter: Ring
                     const ringR = 18;
                     const ringAngle = (i / count) * Math.PI * 2;
                     p.originScatter.set(ringR * Math.cos(ringAngle), 0, ringR * Math.sin(ringAngle));
@@ -1348,21 +1303,14 @@
             update(time, state) {
                 const lerpFactor = 0.1; 
                 
-                // Calculate carousel rotation to scroll selected photo to center (Camera Direction)
                 let angleOffset = 0;
                 const count = this.photos.length;
                 if (this.selectedIndex !== -1) {
                     const localCamPos = new THREE.Vector3().copy(this.camera.position);
-                    this.parent.worldToLocal(localCamPos); // Camera pos relative to Group (since PhotoGroup is inside Group, but PhotoGroup usually has 0 transform)
-                    // Actually PhotoGroup is child of Group. Group might be rotated. 
-                    // We want the ring (inside PhotoGroup) to align with Camera. 
-                    // So we need Camera position in PhotoGroup space?
-                    // PhotoGroup is added to this.parent (Group).
-                    // So yes, LocalCamPos is mostly correct if PhotoGroup has identity transform.
+                    this.parent.worldToLocal(localCamPos); 
                     
                     const camAngle = Math.atan2(localCamPos.z, localCamPos.x); 
                     const angleStep = (Math.PI * 2) / count;
-                    // We want (selectedIndex * angleStep + offset) approx equal to camAngle (to face camera)
                     angleOffset = camAngle - (this.selectedIndex * angleStep);
                 }
 
@@ -1371,16 +1319,11 @@
                     let targetScale = 1;
 
                     if (state === 'ZOOM' && i === this.selectedIndex) {
-                        // ZOOM: Enlarge and center, Face Camera, Block Others
-                        
-                        // 1. Target is a point in front of the camera (World Space)
                         const worldTarget = new THREE.Vector3().copy(this.camera.position).multiplyScalar(0.85); 
                         
-                        // 2. Convert World Target to Local Space (since p.mesh.position is local)
                         this.photoGroup.worldToLocal(worldTarget);
                         target.copy(worldTarget);
                         
-                        // 3. Face Camera
                         p.mesh.lookAt(this.camera.position);
 
                         targetScale = 1;
@@ -1396,11 +1339,7 @@
                          const z = p.originTree.x * Math.sin(rotY) + p.originTree.z * Math.cos(rotY);
                          target.set(x, p.originTree.y, z);
                          
-                         // Face Outward (Normal) - CORRECTED for Group Rotation
-                         // We need World Space target for lookAt
-                         // 1. Update Parent Matrix World just in case (though usually auto updated)
                          this.parent.updateMatrixWorld();
-                         // 2. Calculate "Outward" point in World Space
                          const vector = new THREE.Vector3(x * 2, p.originTree.y, z * 2);
                          const worldTarget = vector.applyMatrix4(this.parent.matrixWorld);
                          p.mesh.lookAt(worldTarget);
@@ -1410,11 +1349,9 @@
                          p.mesh.renderOrder = 0;
                          p.mesh.children.forEach(c => { if(c.material) c.material.depthTest = true; });
 
-                        // SCATTER / ZOOM (Background): Ring Mode
                         const ringR = 18;
                         const angleStep = (Math.PI * 2) / count;
                         
-                        // Apply scrolling rotation using angleOffset
                         const currentAngle = i * angleStep + angleOffset; 
                         
                         target.set(ringR * Math.cos(currentAngle), 0, ringR * Math.sin(currentAngle));
@@ -1423,10 +1360,9 @@
                         this.camera.getWorldPosition(camPos);
                         p.mesh.lookAt(camPos); 
                         
-                        targetScale = 2; // Keep Scatter size
+                        targetScale = 2; 
 
                         if (state === 'ZOOM') {
-                             // Background ring stays at target
                         }
                     }
                     
@@ -1462,7 +1398,7 @@
 
         class Snow {
             constructor(scene) { this.scene = scene; this.init(); }
-            init() { /*...*/ 
+            init() { 
                 const shape = new THREE.Shape();
                 const R=0.15, r=R*0.5;
                 for(let i=0;i<12;i++){
@@ -1486,9 +1422,7 @@
             update(time) {
                  const range = 40; 
                  this.data.forEach((d,i)=>{
-                    // Fall down: y decreases
                     let y = d.initialY - (time * d.fallSpeed);
-                    // Wrap around in range [-20, 20]
                     y = ((y + 20) % range + range) % range - 20;
 
                     this.dummy.position.set(d.x, y, d.z);
@@ -1549,16 +1483,12 @@
                     this.lastHandX = currX;
                     this.gestureData.smoothDeltaX = this.gestureData.smoothDeltaX * 0.8 + rawDelta * 0.2;
 
-                    // STRICTER GESTURE LOGIC
                     this.gestureData.isPointing = this.detectPointing(lm);
-                    // Fist cannot be pointing
                     this.gestureData.isFist = !this.gestureData.isPointing && this.detectFist(lm);
-                    // Palm cannot be pointing or fist
                     this.gestureData.isOpenPalm = !this.gestureData.isFist && !this.gestureData.isPointing && this.detectOpenPalm(lm);
                     
                     const now = Date.now();
                     if (now - this.lastGestureTime > 3000) { 
-                        // Only detect tilt if Pointing
                         if (this.gestureData.isPointing) {
                             if(this.detectTiltLeft(lm)) { this.app.handleGesture('TILT_LEFT'); this.lastGestureTime = now; }
                             else if(this.detectTiltRight(lm)) { this.app.handleGesture('TILT_RIGHT'); this.lastGestureTime = now; }
@@ -1577,25 +1507,21 @@
             
             getDist(p1, p2) { return Math.sqrt((p1.x-p2.x)**2 + (p1.y-p2.y)**2); }
             
-            // Fist: 4 fingers closed
             detectFist(lm) {
                 const wrist = lm[0];
                 let folded = 0;
                 [8,12,16,20].forEach(t => { if(this.getDist(lm[t], wrist) < 0.25) folded++; });
                 return folded >= 4; 
             }
-            // Open Palm: 4 fingers open (Thumb optional)
             detectOpenPalm(lm) {
                 const wrist = lm[0];
                 let open = 0;
                 [8,12,16,20].forEach(t => { if(this.getDist(lm[t], wrist) > 0.35) open++; });
                 return open >= 4; 
             }
-            // Pointing: Index Extended, others folded 
             detectPointing(lm) {
                  const wrist = lm[0];
-                 const indexOpen = this.getDist(lm[8], wrist) > 0.3; // Index Tip far
-                 // Middle, Ring, Pinky Tips close
+                 const indexOpen = this.getDist(lm[8], wrist) > 0.3; 
                  const othersClosed = this.getDist(lm[12], wrist) < 0.25 && 
                                       this.getDist(lm[16], wrist) < 0.25 && 
                                       this.getDist(lm[20], wrist) < 0.25;
