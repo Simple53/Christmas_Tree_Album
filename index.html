@@ -299,19 +299,47 @@
             treeRadiusBase: 10
         };
 
+        // --- GitHub 配置区 ---
+        // 这里的占位符 '%%...%%' 会在通过 GitHub Actions 发布时自动被替换为 Repository Settings 里的真实值。
+        // 本地运行时，这些值保持不变，应用会自动忽略它们并读取 LocalStorage 或要求手动输入。
+        const GITHUB_SECRETS = {
+            owner: '%%GH_OWNER%%', 
+            repo: '%%GH_REPO%%',   
+            token: '%%GH_TOKEN%%', 
+            path: 'photos/' 
+        };
+
         class GithubStore {
             constructor() {
-                this.config = JSON.parse(localStorage.getItem('xmas_gh_config') || '{}');
+                this.localConfig = JSON.parse(localStorage.getItem('xmas_gh_config') || '{}');
+            }
+
+            get config() {
+                // 判断是否是占位符（即本地运行模式）
+                const isBuilt = GITHUB_SECRETS.token && !GITHUB_SECRETS.token.startsWith('%%');
+                
+                if (isBuilt) {
+                    // 如果已构建注入，优先使用注入的 Secrets
+                    return GITHUB_SECRETS;
+                } else {
+                    // 否则（本地模式），使用 LocalStorage
+                    return {
+                        owner: this.localConfig.owner,
+                        repo: this.localConfig.repo,
+                        token: this.localConfig.token,
+                        path: this.localConfig.path || 'photos/'
+                    };
+                }
             }
 
             get isConfigured() {
-                return this.config.owner && this.config.repo && this.config.token;
+                const c = this.config;
             }
 
             saveConfig(owner, repo, token, path = 'photos/') {
-                this.config = { owner, repo, token, path };
-                if(!this.config.path.endsWith('/')) this.config.path += '/';
-                localStorage.setItem('xmas_gh_config', JSON.stringify(this.config));
+                this.localConfig = { owner, repo, token, path };
+                if(!this.localConfig.path.endsWith('/')) this.localConfig.path += '/';
+                localStorage.setItem('xmas_gh_config', JSON.stringify(this.localConfig));
             }
 
             async fetchPhotos() {
@@ -475,6 +503,14 @@
                     document.removeEventListener('touchend', endDrag);
                 }
                 
+                function endDrag() {
+                    isDragging = false;
+                    document.removeEventListener('mousemove', onDrag);
+                    document.removeEventListener('mouseup', endDrag);
+                    document.removeEventListener('touchmove', onDrag);
+                    document.removeEventListener('touchend', endDrag);
+                }
+                
                 // Settings UI Handlers
                 const settingsModal = document.getElementById('settings-modal');
                 document.getElementById('settings-btn').addEventListener('click', () => {
@@ -482,6 +518,7 @@
                     const conf = this.githubStore.config;
                     if(conf.owner) document.getElementById('gh-owner').value = conf.owner;
                     if(conf.repo) document.getElementById('gh-repo').value = conf.repo;
+                    // 如果是代码里配的 Token，稍微隐藏一下细节，或者直接显示
                     if(conf.token) document.getElementById('gh-token').value = conf.token;
                     if(conf.path) document.getElementById('gh-path').value = conf.path;
                 });
