@@ -515,7 +515,11 @@
                          }
                     }
 
-                    const shareUrl = `${baseUrl}?photos=${encodeURIComponent(publicPhotos.join(','))}`;
+                    // Use new compression logic
+                    const compressedParam = this.world.photoManager.compressUrlParam(publicPhotos);
+                    // No need to encodeURIComponent for '!' separated simpler string if it only contains safe chars
+                    // But to be safe for browsers:
+                    const shareUrl = `${baseUrl}?photos=${compressedParam}`; // '!' and '*' are safe in query
                     
                     // Simple prompt for copy
                     if(navigator.clipboard) {
@@ -1065,15 +1069,82 @@
                 this.loadPhotos();
             }
 
+            // --- URL Compression Helpers ---
+            compressUrlParam(urls) {
+                // Common prefixes dictionary
+                const prefixes = {
+                    'https://i.ibb.co/': '*',
+                    'https://': '~',
+                    'http://': '^'
+                };
+                
+                return urls.map(url => {
+                    let short = url;
+                    for(let [pre, code] of Object.entries(prefixes)) {
+                        if(short.startsWith(pre)) {
+                            short = code + short.slice(pre.length);
+                            break; 
+                        }
+                    }
+                    return short;
+                }).join('!'); // '!' is URL safe and doesn't need encoding
+            }
+
+            decompressUrlParam(param) {
+                 if(!param) return [];
+                 const prefixes = {
+                    '*': 'https://i.ibb.co/',
+                    '~': 'https://',
+                    '^': 'http://'
+                 };
+                 
+                 return param.split('!').map(short => {
+                     const code = short[0];
+                     if(prefixes[code]) {
+                         return prefixes[code] + short.slice(1);
+                     }
+                     return short;
+                 });
+            }
+
             async loadPhotos() {
                 let sources = [];
                 this.showingDefaults = false;
                 
-                // 1. Check URL Params (Share Mode)
+                // 1. Load from 'photos.json' (static catalog)
+                try {
+                    const res = await fetch('photos.json');
+                    if (res.ok) {
+                        const staticPhotos = await res.json();
+                        if (Array.isArray(staticPhotos) && staticPhotos.length > 0) {
+                             staticPhotos.forEach(url => {
+                                 if(typeof url === 'string' && url.startsWith('http')) {
+                                     if(!url.includes('example/your-photo')) {
+                                         sources.push({ url: url, source: 'static' });
+                                     }
+                                 }
+                             });
+                        }
+                    }
+                } catch(e) { console.log("No static photos.json found or invalid"); }
+
+                // 2. Check URL Params (Share Mode)
                 const urlParams = new URLSearchParams(window.location.search);
-                const sharedPhotos = urlParams.get('photos');
-                if (sharedPhotos) {
-                    const urls = sharedPhotos.split(',').filter(u => u.startsWith('http'));
+                const sharedParam = urlParams.get('photos');
+                
+                if (sharedParam) {
+                    let urls = [];
+                    // Detect if it's the new compressed format (contains '!' or starts with special chars)
+                    // or legacy comma-separated
+                    if (sharedParam.includes('!') || sharedParam.includes('*') || sharedParam.includes('~') || sharedParam.includes('^')) {
+                        urls = this.decompressUrlParam(sharedParam);
+                    } else {
+                        // Legacy support
+                        urls = decodeURIComponent(sharedParam).split(',');
+                    }
+
+                    urls = urls.filter(u => u.startsWith('http'));
+
                     if (urls.length > 0) {
                         // Merge shared photos with static if any
                         const shared = urls.map(u => ({ url: u, source: 'shared' }));
@@ -1082,7 +1153,7 @@
                     }
                 }
 
-                // 2. Load Local if no shared or supplement (Optional: currently logic prefers shared OR local)
+                // 3. Load Local if no shared or supplement (Optional: currently logic prefers shared OR local)
                 if (sources.length === 0) {
                       try { 
                           const raw = JSON.parse(localStorage.getItem('xmas_user_photos') || "[]");
