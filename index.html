@@ -1075,9 +1075,10 @@
                 if (sharedPhotos) {
                     const urls = sharedPhotos.split(',').filter(u => u.startsWith('http'));
                     if (urls.length > 0) {
-                        sources = urls.map(u => ({ url: u, source: 'shared' }));
-                        console.log("Loaded shared photos:", sources.length);
-                        // In share mode, we might want to prevent edits, but for now allow adding more local
+                        // Merge shared photos with static if any
+                        const shared = urls.map(u => ({ url: u, source: 'shared' }));
+                        sources = [...sources, ...shared];
+                        console.log("Loaded shared photos:", shared.length);
                     }
                 }
 
@@ -1123,7 +1124,10 @@
                              console.log("Uploaded successfully:", retUrl);
                              // Update the photo data with real URL
                              const lastIdx = this.photos.length - 1;
-                             if(lastIdx >= 0) this.photos[lastIdx].data.url = retUrl;
+                             if(lastIdx >= 0) {
+                                 this.photos[lastIdx].data.url = retUrl;
+                                 this.photos[lastIdx].data.source = 'imgbb'; // Mark as remote
+                             }
                              
                              return { success: true, url: retUrl };
                          }).catch(e => {
