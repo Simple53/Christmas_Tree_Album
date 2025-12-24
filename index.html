@@ -247,8 +247,11 @@
                         <svg class="svg-icon" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
                         <div id="storage-indicator" style="position:absolute; bottom:5px; right:5px; width:6px; height:6px; border-radius:50%; background:#555; border:1px solid #000;"></div>
                     </button>
-                    <button id="settings-btn" class="custom-btn" title="配置 GitHub 云存储">
+                    <button id="settings-btn" class="custom-btn" title="配置图床 (ImgBB)">
                         <svg class="svg-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                    </button>
+                    <button id="share-btn" class="custom-btn" title="分享链接">
+                        <svg class="svg-icon" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
                     </button>
                     <button id="mute-btn" class="custom-btn" title="静音/播放">
                         <svg class="svg-icon" viewBox="0 0 24 24" id="mute-icon">
@@ -264,28 +267,17 @@
     </div> 
     <div id="settings-modal" class="modal hidden">
         <div class="modal-content">
-            <h2>GitHub云存储</h2>
+            <h2>配置 ImgBB 图床</h2>
             <div class="form-group">
-                <label>用户名 (Owner)</label>
-                <input type="text" id="gh-owner" placeholder="GitHub用户名">
-            </div>
-            <div class="form-group">
-                <label>仓库名 (Repo)</label>
-                <input type="text" id="gh-repo" placeholder="仓库名称">
-            </div>
-            <div class="form-group">
-                <label>文件夹 (Path)</label>
-                <input type="text" id="gh-path" value="photos/" placeholder="photos/">
-            </div>
-            <div class="form-group">
-                <label>Token (PAT)</label>
-                <input type="password" id="gh-token" placeholder="github_pat_...">
+                <label>API Key (必填)</label>
+                <input type="text" id="imgbb-key" placeholder="在此粘贴您的 ImgBB API Key">
             </div>
             <div style="font-size: 0.75rem; color: #aaa; margin-bottom: 20px; line-height: 1.4;">
-                照片将上传到您的 GitHub 仓库。<br>
+                照片将匿名上传到 ImgBB。<br>
+                请前往 <a href="https://api.imgbb.com/" target="_blank" style="color:#FFD700;">api.imgbb.com</a> 获取 API Key。
             </div> <div class="modal-actions">
                 <button class="btn-cancel" id="close-settings">关闭</button>
-                <button class="btn-save" id="save-settings">保存连接</button>
+                <button class="btn-save" id="save-settings">保存</button>
             </div>
         </div>
     </div>
@@ -294,7 +286,9 @@
         <div class="modal-content" style="max-width: 600px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
                 <h2 style="margin:0;">图库</h2>
-                <button id="open-github-settings" class="custom-btn" title="GitHub 设置" style="background:#333; padding:5px 10px; border-radius:4px; border:1px solid #555;">⚙️ 设置</button>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+                <h2 style="margin:0;">图库</h2>
+                <button id="open-imgbb-settings" class="custom-btn" title="图床设置" style="background:#333; padding:5px 10px; border-radius:4px; border:1px solid #555;">⚙️ 设置</button>
             </div>
             
             <div style="display: flex; gap: 10px; margin-bottom: 20px;">
@@ -338,119 +332,47 @@
             treeRadiusBase: 10
         };
 
-        const GITHUB_SECRETS = {
-            owner: '%%GH_OWNER%%', 
-            repo: '%%GH_REPO%%',    
-            path: 'photos/' 
-        };
-
-        class GithubStore {
+        class ImgBBStore {
             constructor() {
-                this.localConfig = JSON.parse(localStorage.getItem('xmas_gh_config') || '{}');
+                this.localConfig = JSON.parse(localStorage.getItem('xmas_imgbb_config') || '{}');
             }
 
             get config() {
-                const s = GITHUB_SECRETS;
-                const l = this.localConfig;
-                
-                const val = (key) => (s[key] && !s[key].startsWith('%%') && s[key] !== '') ? s[key] : l[key];
-
-                const finalConfig = {
-                    owner: val('owner'),
-                    repo: val('repo'),
-                    token: l.token, 
-                    path: val('path') || 'photos/'
-                };
-                
-                if (!this._loggedConfig) {
-                    console.log("[GitHub Config] Owner/Repo:", finalConfig.owner, finalConfig.repo, 
-                                "| Token configured:", !!finalConfig.token);
-                    this._loggedConfig = true;
-                }
-                
-                return finalConfig;
+                return this.localConfig;
             }
 
             get isConfigured() {
-                const c = this.config;
-                return c.owner && c.repo && c.token;
+                return !!this.config.apiKey;
             }
 
-            saveConfig(owner, repo, token, path = 'photos/') {
-                this.localConfig = { owner, repo, token, path };
-                if(!this.localConfig.path.endsWith('/')) this.localConfig.path += '/';
-                localStorage.setItem('xmas_gh_config', JSON.stringify(this.localConfig));
-            }
-
-            async fetchPhotos() {
-                if (!this.isConfigured) return [];
-                const url = `https://api.github.com/repos/${this.config.owner}/${this.config.repo}/contents/${this.config.path}`;
-                try {
-                    const res = await fetch(url, {
-                        headers: { 
-                            'Authorization': `Bearer ${this.config.token}`,
-                            'Accept': 'application/vnd.github+json'
-                        }
-                    });
-                    if (!res.ok) throw new Error(res.statusText + " (Is the repo private? Check token)");
-                    const data = await res.json();
-                    if(!Array.isArray(data)) return [];
-                    return data
-                        .filter(file => file.type === 'file' && file.name.match(/\.(jpg|jpeg|png|gif)$/i))
-                        .map(file => ({
-                            url: file.download_url,
-                            name: file.name,
-                            path: file.path,
-                            sha: file.sha,
-                            source: 'github'
-                        }));
-                } catch (e) {
-                    console.error("GitHub Fetch Error:", e);
-                    return [];
-                }
-            }
-
-            async deletePhoto(path, sha) {
-                 if (!this.isConfigured) throw new Error("GitHub Not Configured");
-                 const url = `https://api.github.com/repos/${this.config.owner}/${this.config.repo}/contents/${path}`;
-                 
-                 const res = await fetch(url, {
-                    method: 'DELETE',
-                    headers: {
-                        'Authorization': `Bearer ${this.config.token}`,
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        message: "Delete photo via Xmas App",
-                        sha: sha
-                    })
-                });
-                if (!res.ok) throw new Error(await res.text());
-                return true;
+            saveConfig(apiKey) {
+                this.localConfig = { apiKey };
+                localStorage.setItem('xmas_imgbb_config', JSON.stringify(this.localConfig));
             }
 
             async uploadPhoto(dataUrl) {
-                if (!this.isConfigured) throw new Error("GitHub Not Configured");
+                if (!this.isConfigured) throw new Error("API Key 未配置");
                 
-                const filename = 'xmas_' + Date.now() + '.jpg';
-                const content = dataUrl.split(',')[1]; 
-                const url = `https://api.github.com/repos/${this.config.owner}/${this.config.repo}/contents/${this.config.path}${filename}`;
+                const base64Content = dataUrl.split(',')[1]; 
+                const formData = new FormData();
+                formData.append('key', this.config.apiKey);
+                formData.append('image', base64Content);
 
-                const res = await fetch(url, {
-                    method: 'PUT',
-                    headers: {
-                        'Authorization': `Bearer ${this.config.token}`,
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        message: "Upload from Xmas App",
-                        content: content
-                    })
-                });
-                
-                if (!res.ok) throw new Error(await res.text());
-                const data = await res.json();
-                return data.content.download_url;
+                try {
+                    const res = await fetch('https://api.imgbb.com/1/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const json = await res.json();
+                    if (json.status_code !== 200 && !json.success) {
+                        throw new Error(json.error ? json.error.message : "上传失败");
+                    }
+                    return json.data.url; 
+                } catch (e) {
+                    console.error("ImgBB Upload Error:", e);
+                    throw e;
+                }
             }
         }
 
@@ -462,10 +384,10 @@
                 this.loadingMsg = document.getElementById('loading-msg');
                 
                 this.state = 'TREE'; 
-                this.githubStore = new GithubStore();
+                this.imgbbStore = new ImgBBStore();
 
                 try {
-                    this.world = new World(this.container, this.githubStore);
+                    this.world = new World(this.container, this.imgbbStore);
                     this.input = new InputManager(this);
                 } catch(e) { console.error(e); return; }
                 
@@ -499,9 +421,11 @@
                         await Promise.all(uploadPromises);
                         
                         this.statusEl.style.display = 'none';
-                        if (this.githubStore.isConfigured) {
-                             if(failCount === 0) alert(`成功上传 ${successCount} 张照片!`);
-                             else alert(`上传完成。\n成功: ${successCount}\n失败: ${failCount}\n(请检查网络或Token)`);
+                        if (this.imgbbStore.isConfigured) {
+                             if(failCount === 0) alert(`成功上传 ${successCount} 张照片! 记得点击分享按钮生成链接哦。`);
+                             else alert(`上传完成。\n成功: ${successCount}\n失败: ${failCount}\n(请检查Key或网络)`);
+                        } else {
+                             alert(`已添加到本地 (未配置图床，仅本地可见)。`);
                         }
                         
                         e.target.value = '';
@@ -519,9 +443,36 @@
                 });
                 
                 document.getElementById('btn-clear-all').addEventListener('click', () => {
-                    if(confirm("确定清空所有照片吗？这会删除本地记录，如果是GitHub模式，将通过文件列表逐个尝试删除(慎用)！建议仅在本地调试使用。")) {
+                    if(confirm("确定清空所有本地/缓存照片吗？这不会删除已上传到图床的图片，但会移除当前的引用。")) {
                          this.world.photoManager.clearAll();
                          document.getElementById('manage-modal').classList.add('hidden');
+                    }
+                });
+                
+                // Share Button Logic
+                document.getElementById('share-btn').addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const photos = this.world.photoManager.photos
+                        .filter(p => p.data.url && p.data.url.startsWith('http'))
+                        .map(p => p.data.url);
+                        
+                    if(photos.length === 0) {
+                        alert("没有可分享的照片 (请先上传)");
+                        return;
+                    }
+
+                    const baseUrl = window.location.href.split('?')[0];
+                    const shareUrl = `${baseUrl}?photos=${encodeURIComponent(photos.join(','))}`;
+                    
+                    // Simple prompt for copy
+                    if(navigator.clipboard) {
+                        navigator.clipboard.writeText(shareUrl).then(() => {
+                            alert("分享链接已复制到剪贴板！\n\n" + shareUrl);
+                        }).catch(() => {
+                            prompt("请复制以下链接分享:", shareUrl);
+                        });
+                    } else {
+                        prompt("请复制以下链接分享:", shareUrl);
                     }
                 });
                 
@@ -612,45 +563,34 @@
                 const settingsModal = document.getElementById('settings-modal');
                 const manageModal = document.getElementById('manage-modal');
 
-                document.getElementById('open-github-settings').addEventListener('click', (e) => {
+                document.getElementById('open-imgbb-settings').addEventListener('click', (e) => {
                       e.stopPropagation();
                       manageModal.classList.add('hidden');
                       settingsModal.classList.remove('hidden');
                       
-                      const conf = this.githubStore.config;
-                      if(conf.owner) document.getElementById('gh-owner').value = conf.owner;
-                      if(conf.repo) document.getElementById('gh-repo').value = conf.repo;
-                      if(conf.token) document.getElementById('gh-token').value = conf.token;
-                      if(conf.path) document.getElementById('gh-path').value = conf.path;
+                      const conf = this.imgbbStore.config;
+                      if(conf.apiKey) document.getElementById('imgbb-key').value = conf.apiKey;
                 });
                 
                 document.getElementById('settings-btn').addEventListener('click', (e) => {
                     e.stopPropagation();
                     settingsModal.classList.remove('hidden');
-                    const conf = this.githubStore.config;
-                    if(conf.owner) document.getElementById('gh-owner').value = conf.owner;
-                    if(conf.repo) document.getElementById('gh-repo').value = conf.repo;
-                    if(conf.token) document.getElementById('gh-token').value = conf.token;
-                    if(conf.path) document.getElementById('gh-path').value = conf.path;
+                    const conf = this.imgbbStore.config;
+                    if(conf.apiKey) document.getElementById('imgbb-key').value = conf.apiKey;
                 });
                 document.getElementById('close-settings').addEventListener('click', () => {
                    settingsModal.classList.add('hidden');
                 });
                 document.getElementById('save-settings').addEventListener('click', () => {
-                    const owner = document.getElementById('gh-owner').value.trim();
-                    const repo = document.getElementById('gh-repo').value.trim();
-                    const token = document.getElementById('gh-token').value.trim();
-                    const path = document.getElementById('gh-path').value.trim();
+                    const apiKey = document.getElementById('imgbb-key').value.trim();
                     
-                    if(owner && repo && token) {
-                        this.githubStore.saveConfig(owner, repo, token, path);
-                        alert("配置已保存，即将尝试从 GitHub 加载照片...");
+                    if(apiKey) {
+                        this.imgbbStore.saveConfig(apiKey);
+                        alert("配置已保存！现在可以上传照片了。");
                         settingsModal.classList.add('hidden');
-                        this.world.photoManager.clearAll(true); 
-                        this.world.photoManager.loadPhotos(); 
                         this.updateStorageIndicator();
                     } else {
-                        alert("请填写完整信息");
+                        alert("请输入API Key");
                     }
                 });
 
@@ -692,12 +632,12 @@
 
             updateStorageIndicator() {
                 const ind = document.getElementById('storage-indicator');
-                if (this.githubStore.isConfigured) {
+                if (this.imgbbStore.isConfigured) {
                     ind.style.background = '#00FF00'; 
-                    ind.title = "已连接 GitHub";
+                    ind.title = "已配置 ImgBB";
                 } else {
                     ind.style.background = '#555'; 
-                    ind.title = "本地存储模式 (GitHub 未配置)";
+                    ind.title = "本地存储模式 (ImgBB 未配置)";
                 }
             }
 
@@ -798,9 +738,9 @@
         }
 
         class World {
-            constructor(container, githubStore) {
+            constructor(container, imgbbStore) {
                 this.container = container;
-                this.githubStore = githubStore;
+                this.imgbbStore = imgbbStore;
                 this.scene = null;
                 this.camera = null;
                 this.renderer = null;
@@ -842,7 +782,7 @@
                 this.scene.add(this.group);
 
                 this.particles = new Particles(this.group, CONFIG.particleCount);
-                this.photoManager = new PhotoManager(this.group, this.camera, this.githubStore); 
+                this.photoManager = new PhotoManager(this.group, this.camera, this.imgbbStore); 
                 this.star = new Star(this.group);
                 this.snow = new Snow(this.scene); 
 
@@ -1060,10 +1000,10 @@
         }
 
         class PhotoManager {
-            constructor(parent, camera, githubStore) { 
+            constructor(parent, camera, imgbbStore) { 
                 this.parent = parent;
                 this.camera = camera; 
-                this.githubStore = githubStore;
+                this.imgbbStore = imgbbStore;
                 this.photos = [];
                 this.photoGroup = new THREE.Group();
                 this.parent.add(this.photoGroup);
@@ -1076,14 +1016,19 @@
                 let sources = [];
                 this.showingDefaults = false;
                 
-                if (this.githubStore.isConfigured) {
-                    try {
-                        const items = await this.githubStore.fetchPhotos();
-                        sources = items; 
-                        console.log("Loaded from GitHub:", sources.length);
-                    } catch(e) { console.error(e); }
+                // 1. Check URL Params (Share Mode)
+                const urlParams = new URLSearchParams(window.location.search);
+                const sharedPhotos = urlParams.get('photos');
+                if (sharedPhotos) {
+                    const urls = sharedPhotos.split(',').filter(u => u.startsWith('http'));
+                    if (urls.length > 0) {
+                        sources = urls.map(u => ({ url: u, source: 'shared' }));
+                        console.log("Loaded shared photos:", sources.length);
+                        // In share mode, we might want to prevent edits, but for now allow adding more local
+                    }
                 }
 
+                // 2. Load Local if no shared or supplement (Optional: currently logic prefers shared OR local)
                 if (sources.length === 0) {
                       try { 
                           const raw = JSON.parse(localStorage.getItem('xmas_user_photos') || "[]");
@@ -1120,9 +1065,13 @@
                  this.addPhotoToScene(photoData);
                  
                  if (save && typeof source === 'string') {
-                     if (this.githubStore.isConfigured) {
-                         return this.githubStore.uploadPhoto(source).then(retUrl => { 
+                     if (this.imgbbStore.isConfigured) {
+                         return this.imgbbStore.uploadPhoto(source).then(retUrl => { 
                              console.log("Uploaded successfully:", retUrl);
+                             // Update the photo data with real URL
+                             const lastIdx = this.photos.length - 1;
+                             if(lastIdx >= 0) this.photos[lastIdx].data.url = retUrl;
+                             
                              return { success: true, url: retUrl };
                          }).catch(e => {
                              console.error("Upload failed", e);
@@ -1205,14 +1154,8 @@
                 this.photoGroup.remove(photo.mesh);
                 this.photos.splice(index, 1);
                 
-                if (photo.data.source === 'github' && photo.data.sha) {
-                    try {
-                        await this.githubStore.deletePhoto(photo.data.path, photo.data.sha);
-                        console.log("Deleted from GitHub");
-                    } catch(e) {
-                         alert("GitHub 删除失败: " + e.message);
-                    }
-                } else if (photo.data.source === 'local') {
+                // For ImgBB/Share mode, we just remove from local view/cache
+                if (photo.data.source === 'local' || !photo.data.source) {
                     let saved = JSON.parse(localStorage.getItem('xmas_user_photos') || "[]");
                     saved = saved.filter(s => {
                         const u = (typeof s === 'string') ? s : s.url;
