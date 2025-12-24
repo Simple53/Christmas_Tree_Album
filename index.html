@@ -1116,45 +1116,52 @@
                  
                  let photoData = (typeof source === 'string') ? { url: source, source: 'local' } : source;
 
-                 this.addPhotoToScene(photoData);
-                 
-                 if (save && typeof source === 'string') {
-                     if (this.imgbbStore.isConfigured) {
-                         return this.imgbbStore.uploadPhoto(source).then(retUrl => { 
-                             console.log("Uploaded successfully:", retUrl);
-                             // Update the photo data with real URL
-                             const lastIdx = this.photos.length - 1;
-                             if(lastIdx >= 0) {
-                                 this.photos[lastIdx].data.url = retUrl;
-                                 this.photos[lastIdx].data.source = 'imgbb'; // Mark as remote
-                             }
-                             
-                             return { success: true, url: retUrl };
-                         }).catch(e => {
-                             console.error("Upload failed", e);
-                             return { success: false, error: e.message };
-                         });
-                     } else {
-                         try {
-                             let saved = JSON.parse(localStorage.getItem('xmas_user_photos') || "[]");
-                             if(!saved.some(s => (typeof s === 'string' ? s : s.url) === photoData.url)) {
-                                 saved.push(photoData);
-                                 localStorage.setItem('xmas_user_photos', JSON.stringify(saved));
-                             }
-                         } catch(e) { console.warn("Storage Full"); }
-                         return Promise.resolve({ success: true, source: 'local' });
+                 // We use a Promise to get the actual photo object created by THREE.js loader
+                 // This ensures we have a stable reference even if other photos load in between
+                 return new Promise((resolve) => {
+                     this.addPhotoToScene(photoData, (photoObj) => {
+                         resolve(photoObj);
+                     });
+                 }).then(photoObj => {
+                     if (save && typeof source === 'string') {
+                         if (this.imgbbStore.isConfigured) {
+                             return this.imgbbStore.uploadPhoto(source).then(retUrl => { 
+                                 console.log("Uploaded successfully:", retUrl);
+                                 
+                                 // Update the SPECIFIC photo object we created
+                                 if(photoObj) {
+                                     photoObj.data.url = retUrl;
+                                     photoObj.data.source = 'imgbb'; 
+                                 }
+                                 return { success: true, url: retUrl };
+                             }).catch(e => {
+                                 console.error("Upload failed", e);
+                                 return { success: false, error: e.message };
+                             });
+                         } else {
+                             // Local saving logic
+                             try {
+                                 let saved = JSON.parse(localStorage.getItem('xmas_user_photos') || "[]");
+                                 if(!saved.some(s => (typeof s === 'string' ? s : s.url) === photoData.url)) {
+                                     saved.push(photoData);
+                                     localStorage.setItem('xmas_user_photos', JSON.stringify(saved));
+                                 }
+                             } catch(e) { console.warn("Storage Full"); }
+                             return Promise.resolve({ success: true, source: 'local' });
+                         }
                      }
-                 }
-                 return Promise.resolve({ success: true, source: 'nosave' });
+                     return Promise.resolve({ success: true, source: 'nosave' });
+                 });
             }
 
-            addPhotoToScene(photoData) {
+            addPhotoToScene(photoData, callback) {
                 const loader = new THREE.TextureLoader();
                 loader.crossOrigin = "Anonymous";
                 loader.load(photoData.url, (texture) => {
                     texture.colorSpace = THREE.SRGBColorSpace;
-                    this.createPolaroidMesh(texture, photoData);
+                    const photoObj = this.createPolaroidMesh(texture, photoData);
                     this.recalcPositions(); 
+                    if(callback) callback(photoObj);
                 });
             }
 
@@ -1254,13 +1261,15 @@
                 // Ensure user data is attached for raycasting/identification
                 polaroidGroup.userData = { isPhoto: true }; 
                 
-                this.photos.push({ 
+                const newPhoto = { 
                     mesh: polaroidGroup, 
                     data: photoData,
                     originTree: new THREE.Vector3(), 
                     originScatter: new THREE.Vector3() 
-                });
+                };
+                this.photos.push(newPhoto);
                 this.photoGroup.add(polaroidGroup);
+                return newPhoto;
             }
             
             recalcPositions() {
