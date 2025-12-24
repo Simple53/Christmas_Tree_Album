@@ -450,24 +450,37 @@
                 });
                 
                 // Share Button Logic
+                // Share Button Logic
                 document.getElementById('share-btn').addEventListener('click', (e) => {
                     e.stopPropagation();
-                    const photos = this.world.photoManager.photos
+                    const photos = this.world.photoManager.photos;
+                    
+                    if (photos.length === 0) {
+                        alert("树上没有照片，请先上传！");
+                        return;
+                    }
+
+                    const publicPhotos = photos
                         .filter(p => p.data.url && p.data.url.startsWith('http'))
                         .map(p => p.data.url);
                         
-                    if(photos.length === 0) {
-                        alert("没有可分享的照片 (请先上传)");
+                    if (publicPhotos.length === 0) {
+                        // Found photos but none are public (http)
+                        if (!this.imgbbStore.isConfigured) {
+                            alert("发现未上传的本地照片。\n\n分享功能需要生成网络链接，请先点击【设置】图标配置 ImgBB API Key，然后重新上传照片。");
+                        } else {
+                            alert("当前照片仅存储在本地 (可能是配置 Key 前添加的)。\n\n请尝试删除并重新上传，或者刷新页面重试。");
+                        }
                         return;
                     }
 
                     const baseUrl = window.location.href.split('?')[0];
-                    const shareUrl = `${baseUrl}?photos=${encodeURIComponent(photos.join(','))}`;
+                    const shareUrl = `${baseUrl}?photos=${encodeURIComponent(publicPhotos.join(','))}`;
                     
                     // Simple prompt for copy
                     if(navigator.clipboard) {
                         navigator.clipboard.writeText(shareUrl).then(() => {
-                            alert("分享链接已复制到剪贴板！\n\n" + shareUrl);
+                            alert("分享链接已复制到剪贴板！\n\n发送给朋友即可看到同款圣诞树🎄");
                         }).catch(() => {
                             prompt("请复制以下链接分享:", shareUrl);
                         });
