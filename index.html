@@ -294,10 +294,19 @@
             <div style="display: flex; gap: 10px; margin-bottom: 20px;">
                 <button id="btn-clear-all" class="custom-btn" style="background:#ff4444; color:white; width:100%;">清空所有照片 (!)</button>
             </div>
+
+            <div style="background:#222; padding:10px; border-radius:4px; margin-bottom:15px; border:1px solid #444;">
+                 <div style="font-size:12px; color:#ccc; margin-bottom:5px;">添加网络图片 (支持 .jpg/.png 直链)</div>
+                 <div style="display:flex; gap:5px;">
+                     <input type="text" id="manual-url-input" placeholder="https://..." style="flex:1; padding:5px; background:#444; color:#fff; border:1px solid #666; border-radius:4px;">
+                     <button id="btn-add-url" class="custom-btn" style="background:#FFD700; color:000; padding:5px 10px;">添加</button>
+                 </div>
+            </div>
+
             <div style="max-height: 400px; overflow-y: auto; text-align: left;">
                 <p style="color:#aaa; font-size:14px; margin-bottom:10px;">点击删除单张 (只会删除已上传的照片, 默认展示图无法删除)</p>
                 <div id="photo-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 10px;">
-                    </div>
+                </div>
             </div>
             <div class="modal-actions" style="margin-top:20px;">
                 <button class="btn-cancel" id="close-manage">关闭</button>
@@ -449,6 +458,27 @@
                     }
                 });
                 
+                document.getElementById('btn-add-url').addEventListener('click', () => {
+                    const input = document.getElementById('manual-url-input');
+                    const url = input.value.trim();
+                    if (!url) return;
+                    
+                    if (!url.startsWith('http')) {
+                         alert("请输入有效的 HTTP/HTTPS 链接");
+                         return;
+                    }
+
+                    this.world.photoManager.addPhoto(url, true).then(res => {
+                         if(res && res.success) {
+                             input.value = '';
+                             alert("添加成功！");
+                             this.world.photoManager.renderManageList();
+                         } else {
+                             alert("添加失败，可能是链接无效或跨域限制。");
+                         }
+                    });
+                });
+                
                 // Share Button Logic
                 // Share Button Logic
                 document.getElementById('share-btn').addEventListener('click', (e) => {
@@ -474,7 +504,17 @@
                         return;
                     }
 
-                    const baseUrl = window.location.href.split('?')[0];
+                    // Improve URL generation: ensure we don't share 'file://' links
+                    let baseUrl = window.location.href.split('?')[0];
+                    if (baseUrl.startsWith('file:') || baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')) {
+                         // Fallback to a "likely" public URL if running locally, or warn
+                         // Since we don't know the exact GitHub Pages URL, we'll try to guess or use the current one if it looks public
+                         // For now, we'll just alert if it's strictly 'file:' because that's definitely not shareable
+                         if (baseUrl.startsWith('file:')) {
+                             alert("⚠️ 您似乎正在本地直接打开 HTML 文件。\n\n生成的分享链接将以 file:// 开头，其他人无法访问。\n请将代码部署到 GitHub Pages 或服务器后再次分享。");
+                         }
+                    }
+
                     const shareUrl = `${baseUrl}?photos=${encodeURIComponent(publicPhotos.join(','))}`;
                     
                     // Simple prompt for copy
@@ -1150,6 +1190,8 @@
                         if(confirm("确定删除这种照片吗?")) {
                             this.deletePhoto(idx);
                             div.remove();
+                            // Refresh list if empty or needed
+                            if(list.children.length === 0) list.innerHTML = "<span style='color:#666'>无可管理照片</span>";
                         }
                     };
 
@@ -1205,6 +1247,9 @@
                 photo.position.z = 0.02; photo.position.y = 0.2; 
                 
                 polaroidGroup.add(paper); polaroidGroup.add(photo);
+                // Ensure user data is attached for raycasting/identification
+                polaroidGroup.userData = { isPhoto: true }; 
+                
                 this.photos.push({ 
                     mesh: polaroidGroup, 
                     data: photoData,
@@ -1317,9 +1362,6 @@
                         p.mesh.lookAt(camPos); 
                         
                         targetScale = 2; 
-
-                        if (state === 'ZOOM') {
-                        }
                     }
                     
                     p.mesh.position.lerp(target, 0.1);
